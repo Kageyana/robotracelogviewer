@@ -4,6 +4,7 @@
 # 使い方
 app/logAnalysis.mlappをMATLABで開く
 
+![画像の説明](スライド1.PNG)
 
 # 環境設定
 ## ログファイル
