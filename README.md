@@ -29,22 +29,15 @@ cntlog,patternTrace,checkMarker,encCurrentN,encTotalN,angleSensor,modeCurve,gyro
 ## コース描画
 コース描画には時間と速度、角速度の情報が必要になります。
 MATLAB Appでは変数名で認識する事ができるのでコード内の時間、速度、角速度の変数名を修正してください
-App Designerを起動し、コードビューに切り替えて53行目～63行目あたりにあるgetLogdata関数を修正してください。
-また、コメントの単位になるように修正してください
+App Designerを起動し、設計ビューからUIデザイン内の設定タブを開き、各式のテキストエリアを編集してください。
+注意事項
+1. 必ず変数名を最初に書く
+2. 演算子、数値の間は半角スペースを1つ入れる
+3. 乗算、除算のみを使用することを**強く推奨します。**(加減乗除の優先度を設定してないので左から順に計算します)
 
-時間
+例
 ```
-app.time = app.log.cntlog ./ 1000;                             % [ms]から[s]に変換
-```
-
-速度
-```
-app.velocity = app.log.encCurrentN ./ app.pulse .* 1000;    % 速度行列[mm/s]
-```
-
-角速度
-```
-app.angularVelocity = -app.log.gyroVal_Z ./10;              % 角度速度配列[deg/s]
+encCurrentN / 60.074 * 1000
 ```
 
 ## 初期フォルダ
