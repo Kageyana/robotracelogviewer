@@ -25,14 +25,14 @@ rawCurrentL = log.rawCurrentL;        % 左モータ電流値
 rawCurrentR = log.rawCurrentR;        % 左モータ電流値
 %% 電流値解析
 rawCurrent = (rawCurrentL + rawCurrentR) /2;
-
-rawCurrent = movmean(-rawCurrent,samplestep);
-rawCurrentL = movmean(-rawCurrentL,samplestep);
-rawCurrentR = movmean(-rawCurrentR,samplestep);
-
-rawCurrentnomal = rawCurrent ./ max(rawCurrent);
-rawCurrentLnomal = rawCurrentL ./ max(rawCurrentL);
-rawCurrentRnomal = rawCurrentR ./ max(rawCurrentR);
+rawCurrentRnomal = normalize(rawCurrentR);
+% rawCurrent = movmean(-rawCurrent,samplestep);
+% rawCurrentL = movmean(-rawCurrentL,samplestep);
+% rawCurrentR = movmean(-rawCurrentR,samplestep);
+% 
+% rawCurrentnomal = rawCurrent ./ max(rawCurrent);
+% rawCurrentLnomal = rawCurrentL ./ max(rawCurrentL);
+% rawCurrentRnomal = rawCurrentR ./ max(rawCurrentR);
 
 %% 速度解析
 velocityLmean = movmean(log.encCurrentL,samplestep);
@@ -131,14 +131,13 @@ hold on
 plot(cntLog,velocityRnomal)
 hold off
 ylim([0 1.2])
-for c = 1:size(cntLog,1)
-    if c > 2
-        if rawCurrentLnomal(c,1) - rawCurrentLnomal(c-2,1) < 0 && velocityLnomal(c,1) - velocityLnomal(c-2,1) > 0
-%             xline(cntLog(c,1));
-        end
-    end
-    
-end
+% for c = 1:size(cntLog,1)
+%     if c > 2
+%         if rawCurrentLnomal(c,1) - rawCurrentLnomal(c-2,1) < 0 && velocityLnomal(c,1) - velocityLnomal(c-2,1) > 0
+% %             xline(cntLog(c,1));
+%         end
+%     end
+% end
 % title("Motor average current")
 % xlabel("time[s]")
 % ylabel("current[mA]")
