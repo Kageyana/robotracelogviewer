@@ -1,6 +1,9 @@
 # robotracelogviewer
 ロボトレースの走行中に記録したログデータをMATLAB Appで見やすく表示するアプリです。
 
+# 動作確認環境
+MATLAB R2022b
+
 # 使い方
 app/logAnalysis.mlappをMATLABで開く。
 
