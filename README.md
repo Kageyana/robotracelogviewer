@@ -25,6 +25,9 @@ reloadボタン押下時、アプリ終了時に設定の保存としてmatフ�
 変数の増減、変数名に制限はありません。ただしコース描画をするには時間、速度、角速度が必要になります。
 
 CSVファイル例
+
+ファイル名は半角数字＋拡張子で作成してください。
+
 ```
 cntlog,patternTrace,checkMarker,encCurrentN,encTotalN,angleSensor,modeCurve,gyroVal_Z,angle_Z,rawCurrentR,rawCurrentL,
 7,11,0,1,11,-97,0,232,1,-18,-243,
