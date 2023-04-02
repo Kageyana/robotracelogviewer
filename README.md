@@ -5,9 +5,8 @@
 MATLAB R2022b
 
 # 使い方
-app/logAnalysis.mlappをMATLABで開く。
-
-reloadボタン押下時、アプリ終了時に設定の保存としてmatファイルをapp直下に作成します。
+MATLABにアプリを以下から追加して起動する
+[![View csvLogAnalysis on File Exchange](https://www.mathworks.com/matlabcentral/images/matlab-file-exchange.svg)](https://jp.mathworks.com/matlabcentral/fileexchange/126839-csvloganalysis)
 
 ## メイン画面
 ![画像の説明](スライド1.PNG)
