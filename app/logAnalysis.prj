@@ -1,0 +1,93 @@
+<deployment-project plugin="plugin.apptool" plugin-version="1.0">
+  <configuration build-checksum="647346117" file="D:\ドキュメント\robotrace\log\app\logAnalysis.prj" location="D:\ドキュメント\robotrace\log\app" name="logAnalysis" target="target.mlapps" target-name="アプリのパッケージ化">
+    <param.appname>logAnalysis</param.appname>
+    <param.authnamewatermark>影山夏樹</param.authnamewatermark>
+    <param.email>uc.aw.ac.ce-gmail.com</param.email>
+    <param.company />
+    <param.icon />
+    <param.icons />
+    <param.summary>CSVファイルに保存されたログを可視化するツールです</param.summary>
+    <param.description>初回起動時
+ログファイルの初期パスはH:になっているのでご自分の環境に合わせて変更してください。
+次回起動時は
+ログファイル
+ログファイルはカンマ区切りのCSVファイルで構成されています。
+1行目は変数名、2行目以降に値が記録されています。
+変数の増減、変数名に制限はありません。ただしコース描画をするには時間、速度、角速度が必要になります。
+CSVファイル例
+ファイル名は半角数字＋拡張子で作成してください。
+例
+100.csv
+cntlog,patternTrace,checkMarker,encCurrentN,encTotalN,angleSensor,modeCurve,gyroVal_Z,angle_Z,rawCurrentR,rawCurrentL,
+7,11,0,1,11,-97,0,232,1,-18,-243,
+17,11,0,9,73,-119,0,12,-2,-21,10,
+47,11,0,18,512,-107,0,-277,-2,2,-123,
+
+コース描画
+コース描画には時間と速度、角速度の情報が必要になります。
+MATLAB Appでは変数名で認識する事ができるのでコード内の時間、速度、角速度の変数名を修正してください。
+App Designerを起動し、設計ビューからUIデザイン内の設定タブを開き、各式のテキストエリアを編集してください。
+注意事項
+1.	必ず変数名を最初に書く。
+2.	演算子、数値の間は半角スペースを1つ入れる。
+3.	使用できる演算子は乗算、除算のみです。
+例
+encCurrentN / 60.074 * 1000
+初期フォルダ
+アプリ起動時に読み込むフォルダを設定します。
+SDカードをマウントしたときのフォルダパスがおすすめです。</param.description>
+    <param.screenshot>C:\Users\Natsuki\AppData\Local\Temp\tpffa76c35_75d0_45cb_9eb8_1acdf6f2b839.png</param.screenshot>
+    <param.version>1.0.2</param.version>
+    <param.products.name />
+    <param.products.id />
+    <param.products.version />
+    <param.platforms />
+    <param.output>${PROJECT_ROOT}</param.output>
+    <param.guid>e3b3afba-3c8d-4f97-a6f4-342a06c31816</param.guid>
+    <unset>
+      <param.company />
+      <param.icon />
+      <param.icons />
+      <param.products.name />
+      <param.products.id />
+      <param.products.version />
+      <param.platforms />
+      <param.output />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}\logAnalysis.mlapp</file>
+    </fileset.main>
+    <fileset.depfun>
+      <file>D:\ドキュメント\robotrace\log\settingVars.mat</file>
+    </fileset.depfun>
+    <fileset.resources>
+      <file>D:\ドキュメント\robotrace\log\スライド1.PNG</file>
+      <file>D:\ドキュメント\robotrace\log\スライド2.PNG</file>
+      <file>D:\ドキュメント\robotrace\log\スライド3.PNG</file>
+    </fileset.resources>
+    <fileset.package />
+    <build-deliverables>
+      <file location="D:\ドキュメント\robotrace\log" name="app" optional="false">D:\ドキュメント\robotrace\log\app</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>C:\Program Files\MATLAB\R2022b</root>
+      <toolboxes />
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>10.0</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>
