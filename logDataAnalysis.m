@@ -2,11 +2,11 @@ clc
 % clear all
 % close all
 %% パラメータ入力
-filename = 'H:/24.csv';    % 読み込みファイル名
+filename = 'H:/583.csv';    % 読み込みファイル名
 
 pulse = 60.074;	% 1mmのパルス
 step = 2;      % プロットの間隔 
-kg = 1.3;         % 補正係数
+kg = 1.02;         % 補正係数
 samplestep =5;     % 平均値のサンプル数
 direction = 0;  % 周回方向  0:時計回り 1:反時計回り
 gyroLSB = 16;   % ジャイロセンサの変換係数
@@ -15,19 +15,19 @@ courseSize = [  -200    1000;
 %% ログ読み込み
 log = readtable(filename);      % ログファイル読み込み
 logsize = size(log);            % 行列数取得
-pattern = log.patternTrace;     % パターン取得
+% pattern = log.patternTrace;     % パターン取得
 gyroZ = -log.gyroVal_Z ./ 10000;    % z軸角速度取得[rad/s]
 Encoder = log.encCurrentN;      % 速度取得
 EncoderTotal = log.encTotalN;   % 総距離取得
 cntLog = log.cntlog;            % 時間取得
-modeCurve = log.modeCurve;      % 直線モード
-rawCurrentL = log.rawCurrentL;        % 左モータ電流値
-rawCurrentR = log.rawCurrentR;        % 左モータ電流値
+% modeCurve = log.modeCurve;      % 直線モード
+% rawCurrentL = log.rawCurrentL;        % 左モータ電流値
+% rawCurrentR = log.rawCurrentR;        % 左モータ電流値
 
 dt = ( cntLog(2,1) - cntLog(1,1) ) / 1000;      % サンプリング周期
 %% 電流値解析
-rawCurrent = (rawCurrentL + rawCurrentR) /2;
-rawCurrentRnomal = normalize(rawCurrentR);
+% rawCurrent = (rawCurrentL + rawCurrentR) /2;
+% rawCurrentRnomal = normalize(rawCurrentR);
 % rawCurrent = movmean(-rawCurrent,samplestep);
 % rawCurrentL = movmean(-rawCurrentL,samplestep);
 % rawCurrentR = movmean(-rawCurrentR,samplestep);
@@ -37,11 +37,11 @@ rawCurrentRnomal = normalize(rawCurrentR);
 % rawCurrentRnomal = rawCurrentR ./ max(rawCurrentR);
 
 %% 速度解析
-velocityLmean = movmean(log.encCurrentL,samplestep);
-velocityRmean = movmean(log.encCurrentR,samplestep);
+% velocityLmean = movmean(log.encCurrentL,samplestep);
+% velocityRmean = movmean(log.encCurrentR,samplestep);
 
-velocityLnomal = velocityLmean ./ max(velocityLmean);
-velocityRnomal = velocityRmean ./ max(velocityRmean);
+% velocityLnomal = velocityLmean ./ max(velocityLmean);
+% velocityRnomal = velocityRmean ./ max(velocityRmean);
 
 velocity = Encoder ./ pulse .* 1000;                  % 速度行列[mm/s]
 velocity = movmean(velocity,samplestep);
@@ -79,7 +79,7 @@ subplot(3,2,[1 5]);
 % scatter(xp,yp,'o','ButtonDownFcn',@(src,evnt)setXline(src,evnt,txy));
 scatter(txy,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)setXline(src,evnt,txy));
 hold on
-scatter(txy.x(ischange(modeCurve)),txy.y(ischange(modeCurve)),'ro','ButtonDownFcn',@(src,evnt)setXline(src,evnt,txy))
+% scatter(txy.x(ischange(modeCurve)),txy.y(ischange(modeCurve)),'ro','ButtonDownFcn',@(src,evnt)setXline(src,evnt,txy))
 hold off
 colorbar
 % 軸設定
@@ -99,9 +99,9 @@ axis equal  % 縦横比を1:1にする
 
 %% 電流表示
 subplot(3,2,2);
-plot(cntLog,rawCurrentRnomal)
+% plot(cntLog,rawCurrentRnomal)
 hold on
-plot(cntLog,velocityRnomal)
+% plot(cntLog,velocityRnomal)
 hold off
 ylim([0 1.2])
 % for c = 1:size(cntLog,1)
@@ -122,7 +122,7 @@ plot(cntLog,velocity)
 % ylabel("velocity[mm/s]")
 %% 角速度表示
 subplot(3,2,6);
-plot(cntLog,[log.CurvatureRadius/10])
+% plot(cntLog,[log.CurvatureRadius/10])
 % title("Robot angularvelocity")
 % xlabel("time[s]")
 % ylabel("angularvelocity[deg/s]")

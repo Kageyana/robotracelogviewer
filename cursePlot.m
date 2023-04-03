@@ -2,7 +2,7 @@ clc
 clear all
 % close all
 %% パラメータ入力
-filename = 'H:/243.csv';    % 読み込みファイル名
+filename = 'H:/583.csv';    % 読み込みファイル名
 
 row = [ 2 8 4 5 1 ];       % 列数 pattern zg Encoder EncoderTotal logcnt
 patternList = [ 11 19;            % 表示するパターン番号
@@ -30,7 +30,7 @@ gyroLSB = 16;
 log = readmatrix(filename);    % ログファイル読み込み
 logsize = size(log);            % 行列数取得
 pattern = log(:,row(1,1));      % パターン取得
-zg = log(:,row(1,2))./10;           % z軸角速度取得
+zg = log(:,row(1,2))./ 10000;           % z軸角速度取得
 Encoder = log(:,row(1,3));      % 速度取得
 EncoderTotal = log(:,row(1,4)); % 総距離取得
 logcnt = log(:,row(1,5));       % 時間取得
