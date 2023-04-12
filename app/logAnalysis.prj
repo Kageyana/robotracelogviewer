@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="647346117" file="D:\ドキュメント\robotrace\log\app\logAnalysis.prj" location="D:\ドキュメント\robotrace\log\app" name="logAnalysis" target="target.mlapps" target-name="アプリのパッケージ化">
+  <configuration build-checksum="74503548" file="D:\ドキュメント\robotrace\log\app\logAnalysis.prj" location="D:\ドキュメント\robotrace\log\app" name="logAnalysis" target="target.mlapps" target-name="アプリのパッケージ化">
     <param.appname>logAnalysis</param.appname>
     <param.authnamewatermark>影山夏樹</param.authnamewatermark>
     <param.email>uc.aw.ac.ce-gmail.com</param.email>
@@ -36,8 +36,8 @@ encCurrentN / 60.074 * 1000
 初期フォルダ
 アプリ起動時に読み込むフォルダを設定します。
 SDカードをマウントしたときのフォルダパスがおすすめです。</param.description>
-    <param.screenshot>C:\Users\Natsuki\AppData\Local\Temp\tpffa76c35_75d0_45cb_9eb8_1acdf6f2b839.png</param.screenshot>
-    <param.version>1.0.2</param.version>
+    <param.screenshot>C:\Users\Natsuki\AppData\Local\Temp\tpbb197561_21b5_4ab1_90d8_a7f28572e541.png</param.screenshot>
+    <param.version>1.0.5</param.version>
     <param.products.name />
     <param.products.id />
     <param.products.version />
@@ -60,18 +60,14 @@ SDカードをマウントしたときのフォルダパスがおすすめです
     <fileset.depfun>
       <file>D:\ドキュメント\robotrace\log\settingVars.mat</file>
     </fileset.depfun>
-    <fileset.resources>
-      <file>D:\ドキュメント\robotrace\log\スライド1.PNG</file>
-      <file>D:\ドキュメント\robotrace\log\スライド2.PNG</file>
-      <file>D:\ドキュメント\robotrace\log\スライド3.PNG</file>
-    </fileset.resources>
+    <fileset.resources />
     <fileset.package />
     <build-deliverables>
       <file location="D:\ドキュメント\robotrace\log" name="app" optional="false">D:\ドキュメント\robotrace\log\app</file>
     </build-deliverables>
     <workflow />
     <matlab>
-      <root>C:\Program Files\MATLAB\R2022b</root>
+      <root>C:\Program Files\MATLAB\R2023a</root>
       <toolboxes />
     </matlab>
     <platform>
