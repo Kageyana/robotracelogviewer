@@ -1,5 +1,5 @@
 <deployment-project plugin="plugin.apptool" plugin-version="1.0">
-  <configuration build-checksum="2161628048" file="D:\ドキュメント\robotrace\log\src\logAnalysis.prj" location="D:\ドキュメント\robotrace\log\src" name="logAnalysis" target="target.mlapps" target-name="アプリのパッケージ化">
+  <configuration build-checksum="1983223785" file="D:\ドキュメント\robotrace\log\src\logAnalysis.prj" location="D:\ドキュメント\robotrace\log\src" name="logAnalysis" target="target.mlapps" target-name="アプリのパッケージ化">
     <param.appname>logAnalysis</param.appname>
     <param.authnamewatermark>影山夏樹</param.authnamewatermark>
     <param.email>uc.aw.ac.ce-gmail.com</param.email>
@@ -36,8 +36,8 @@ encCurrentN / 60.074 * 1000
 初期フォルダ
 アプリ起動時に読み込むフォルダを設定します。
 SDカードをマウントしたときのフォルダパスがおすすめです。</param.description>
-    <param.screenshot>C:\Users\Natsuki\AppData\Local\Temp\tp2809041d_b681_4992_a77e_d3613e95b945.png</param.screenshot>
-    <param.version>1.0.5</param.version>
+    <param.screenshot>C:\Users\Natsuki\AppData\Local\Temp\tp3a7e8932_f4d7_40d8_b889_1de0b5b24db6.png</param.screenshot>
+    <param.version>1.0.6</param.version>
     <param.products.name />
     <param.products.id />
     <param.products.version />
