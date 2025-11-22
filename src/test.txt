@@ -1,0 +1,1178 @@
+classdef logAnalysis < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                  matlab.ui.Figure
+        TabGroup                  matlab.ui.container.TabGroup
+        GraphsTab                 matlab.ui.container.Tab
+        Data3DropDown             matlab.ui.control.DropDown
+        Data3DropDownLabel        matlab.ui.control.Label
+        Data2DropDown             matlab.ui.control.DropDown
+        Data2DropDownLabel        matlab.ui.control.Label
+        Data1DropDown             matlab.ui.control.DropDown
+        Data1DropDownLabel        matlab.ui.control.Label
+        UIAxes1                   matlab.ui.control.UIAxes
+        UIAxes2                   matlab.ui.control.UIAxes
+        UIAxes3                   matlab.ui.control.UIAxes
+        AnalysisTab               matlab.ui.container.Tab
+        ylimmatchSwitch           matlab.ui.control.Switch
+        ylimmatchSwitchLabel      matlab.ui.control.Label
+        detrendRSwitch            matlab.ui.control.Switch
+        detrendSwitch_2Label      matlab.ui.control.Label
+        normalizeRSwitch          matlab.ui.control.Switch
+        normalizeSwitch_2Label    matlab.ui.control.Label
+        detrendLSwitch            matlab.ui.control.Switch
+        detrendSwitchLabel        matlab.ui.control.Label
+        normalizeLSwitch          matlab.ui.control.Switch
+        normalizeSwitchLabel      matlab.ui.control.Label
+        DataAnalysisLDropDown     matlab.ui.control.DropDown
+        smoothLDropDown           matlab.ui.control.DropDown
+        FunctionLabel             matlab.ui.control.Label
+        windowLSpinner            matlab.ui.control.Spinner
+        windowSpinnerLabel        matlab.ui.control.Label
+        DataAnalysisRDropDown     matlab.ui.control.DropDown
+        smoothRDropDown           matlab.ui.control.DropDown
+        windowRSpinner            matlab.ui.control.Spinner
+        windowSpinner_2Label      matlab.ui.control.Label
+        smoothDropDown_2Label     matlab.ui.control.Label
+        DataDropDownLabel_2       matlab.ui.control.Label
+        DataLabel                 matlab.ui.control.Label
+        UIAxesAnalysis            matlab.ui.control.UIAxes
+        SettingTab                matlab.ui.container.Tab
+        graphPositionBotton       matlab.ui.control.Switch
+        SwitchLabel               matlab.ui.control.Label
+        radsCheckBox              matlab.ui.control.CheckBox
+        TranslateequationsLabel   matlab.ui.control.Label
+        timeEditField             matlab.ui.control.EditField
+        velocitymmsLabel_2        matlab.ui.control.Label
+        angularVelocityEditField  matlab.ui.control.EditField
+        angularVelocitydegsLabel  matlab.ui.control.Label
+        velocityEditField         matlab.ui.control.EditField
+        velocitymmsLabel          matlab.ui.control.Label
+        ShortcutTab               matlab.ui.container.Tab
+        plotSwitch                matlab.ui.control.Switch
+        plotSwitchLabel           matlab.ui.control.Label
+        windowSliderLabel         matlab.ui.control.Label
+        windowSlider              matlab.ui.control.Slider
+        LogDropDown               matlab.ui.control.DropDown
+        LogDropDownLabel          matlab.ui.control.Label
+        TimesSlider               matlab.ui.control.Slider
+        TimesLabel                matlab.ui.control.Label
+        SwitchDirection           matlab.ui.control.ToggleSwitch
+        kgyroKnob                 matlab.ui.control.Knob
+        kgyroKnobLabel            matlab.ui.control.Label
+        Spinner                   matlab.ui.control.Spinner
+        ReloadButton              matlab.ui.control.Button
+        TextArea                  matlab.ui.control.TextArea
+        FolderpathLabel           matlab.ui.control.Label
+        FolderButton              matlab.ui.control.Button
+        Lamp                      matlab.ui.control.Lamp
+        UIAxisCourse              matlab.ui.control.UIAxes
+    end
+
+    %プロパティ
+    properties (Access = private)
+        rootDir % ログフォルダのディレクトリ
+        textarea = {}       % テキストエリアに表示する文字列用cell配列
+        log                 % ログデータ用table変数
+        course              % 走行軌跡の座標配列
+        shortCutCourse      % ショートカットの走行軌跡座標配列
+        marker              % 現在地のプロット
+        xlines = cell(1,10) % X軸定数線のオブジェクト配列
+
+        dt              % ログ記録周期
+        time            % 時間配列
+        velocity        % 速度配列
+        angularVelocity % 角速度配列
+        pulse = 60.074	% 1mmのロータリーエンコーダパルス
+        kgyro = 1       % 角度補正係数
+        courseSize = [  -400    800;
+                        -1000   1000]
+    end
+
+    % メソッド
+    methods (Access = private)
+
+        % ログデータを取得する
+        function getLogdata(app)
+            filename = strsplit(app.LogDropDown.Value);
+            filename = filename{1};
+            app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
+%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
+%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
+%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
+
+            % テキストフィールドから換算式を取得
+            % 時間行列[s]
+            timeeq = split(app.timeEditField.Value);    
+            for i = 1:size(timeeq,1)
+                if i == 1 % 1つ目の要素
+                    app.time = app.log.(timeeq{1});
+                elseif timeeq(i) == "*"
+%                     app.time = app.time * str2double(timeeq{i+1});
+                elseif timeeq(i) == "/"
+                    app.time = app.time / str2double(timeeq{i+1});
+                end
+            end
+
+            % 速度行列[mm/s]
+            velocityeq = split(app.velocityEditField.Value);
+            for i = 1:size(velocityeq,1)
+                if i == 1
+                    app.velocity = app.log.(velocityeq{1});
+                elseif velocityeq(i) == "*"
+                    app.velocity = app.velocity * str2double(velocityeq{i+1});
+                elseif velocityeq(i) == "/"
+                    app.velocity = app.velocity / str2double(velocityeq{i+1});
+                end
+            end
+
+            % 角度速度配列[deg/s] 右旋回時にプラス
+            angularVelocityeq = split(app.angularVelocityEditField.Value);
+            for i = 1:size(angularVelocityeq,1)
+                if i == 1
+                    app.angularVelocity = app.log.(angularVelocityeq{1});
+                elseif angularVelocityeq(i) == "*"
+                    app.angularVelocity = app.angularVelocity * str2double(angularVelocityeq{i+1});
+                elseif angularVelocityeq(i) == "/"
+                    app.angularVelocity = app.angularVelocity / str2double(angularVelocityeq{i+1});
+                end
+            end
+
+            app.dt = app.time(2,1) - app.time(1,1);
+            
+            setTexttarea(app, {append(app.rootDir,'\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
+        end
+
+        % ログファイル一覧の取得
+        function getLogfiles(app)
+            try
+                origDir = pwd;              % カレントディレクトリを保存
+                cd(app.rootDir);            % ディレクトリを移動
+                fileList = dir('*.csv');    % csvファイル一覧を取得
+                cd(origDir);                % もとのディレクトリに移動
+                fileList = struct2table(fileList);  % table型に変換
+                fileList.name = convertCharsToStrings(fileList.name);    % String型に変換
+                fileList.name = erase(fileList.name,lettersPattern | characterListPattern("."));   % 文字と.を削除
+                fileList.name = str2double(fileList.name);              % double型に変換
+                idx = isnan(fileList.name);     % NaNを含む行を検索
+                fileList = fileList(~idx,:);    % NaNを含まない行だけを残す
+                fileList = fileList(fileList.bytes ~= 0,:);    % 空ファイルを削除
+                fileList = sortrows(fileList,'name','descend');     % 降順にソート
+                fileList.name = string(fileList.name);              % string型に変換
+
+                app.LogDropDown.Items = {};                         % ドロップダウンメニューを初期化
+
+                app.LogDropDown.Items = append(fileList.name,"    ",string(round(fileList.bytes/1000,0)),"KB" );          % ドロップダウンメニューに追加
+    
+                app.Lamp.Color = "green";   % ステータスランプ緑
+                app.TextArea.Value = "";    % ステータスクリア
+            catch ME
+                app.Lamp.Color = "red";     % ステータスランプ赤
+                app.TextArea.Value = {ME.identifier,ME.message};   % エラー表示
+                if (strcmp(ME.identifier,'MATLAB:cd:NonExistentFolder'))
+                    % 指定フォルダが見つからない
+                    app.FolderButton.Text = "not found folder";
+                end
+                if (strcmp(ME.identifier,'MATLAB:string:MustBeCharCellArrayOrString'))
+                    % 指定フォルダにcsvファイルが無い
+                    app.LogDropDown.Items = "not found files";
+                end
+            end
+        end
+
+        % ログ変数一覧を取得
+        function valnames = getLogvalues(app)
+            valnames = app.log.Properties.VariableNames;
+            valnames = valnames(1,2:end);
+            app.Data1DropDown.Items = valnames;
+            app.Data2DropDown.Items = valnames;
+            app.Data3DropDown.Items = valnames;
+            app.DataAnalysisLDropDown.Items = [{'none'} valnames];
+            app.DataAnalysisRDropDown.Items = [{'none'} valnames];
+        end
+
+        % テキストエリアに文字列を表示する
+        function setTexttarea(app, str)
+            app.textarea = [app.textarea str];  % cell配列に文字列を追加
+            app.TextArea.Value = app.textarea;  % テキストエリアに表示
+            scroll(app.TextArea,'bottom');      % 最下部までスクロール
+        end
+        
+        % コース座標の計算
+        function calcCourseplot(app)
+            try
+                % 座標算出
+                degxy = cumtrapz(app.dt, app.angularVelocity .* app.kgyro);  % 角度行列[deg/s] 角速度を積算
+                if app.radsCheckBox.Value == true
+                    x = cumtrapz(app.dt, ( app.velocity .* sin(degxy) ));
+                    y = cumtrapz(app.dt, ( app.velocity .* cos(degxy) ));
+                else
+                    x = cumtrapz(app.dt, ( app.velocity .* sind(degxy) ));
+                    y = cumtrapz(app.dt, ( app.velocity .* cosd(degxy) ));
+                end
+                % timetable変数作成
+                app.course = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
+            catch ME
+                app.Lamp.Color = "red";     % ステータスランプ赤
+                % エラー表示
+                for num = 1:1:length(ME.stack)
+                    setTexttarea(app, {ME.stack(num,1).name,num2str(ME.stack(num,1).line)})
+                end
+                setTexttarea(app, {ME.identifier,ME.message})
+            end
+        end
+
+        % ショートカット軌跡座標の計算
+        function calcShortCutplot(app)
+            try
+                app.windowSlider.Value = round(app.windowSlider.Value);
+                % 座標算出
+                x = movmean(app.course.x,app.windowSlider.Value);
+                y = movmean(app.course.y,app.windowSlider.Value);
+                % timetable変数作成
+                app.shortCutCourse = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
+            catch ME
+                app.Lamp.Color = "red";     % ステータスランプ赤
+                % エラー表示
+                for num = 1:1:length(ME.stack)
+                    setTexttarea(app, {ME.stack(num,1).name,num2str(ME.stack(num,1).line)})
+                end
+                setTexttarea(app, {ME.identifier,ME.message})
+            end
+        end
+       
+        % コース描画
+        function plotCourse(app)
+            try
+                % プロット
+                scatter(app.UIAxisCourse,app.course,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
+                app.UIAxisCourse.XLim = [min(app.course.x)-100 max(app.course.x)+100];
+                app.UIAxisCourse.YLim = [min(app.course.y)-100 max(app.course.y)+100];
+
+                % コース軸の設定
+                % カラーバー表示
+                c = colorbar(app.UIAxisCourse);
+                c.Label.String = 'velocity[mm/s]';
+                c.Label.FontSize = 12;
+
+                % ショートカット軌跡表示ボタンがONの時
+                if app.plotSwitch.Value == "On"
+                    hold(app.UIAxisCourse, 'on');
+                    scatter(app.UIAxisCourse,app.shortCutCourse.x,app.shortCutCourse.y);
+                    hold(app.UIAxisCourse, 'off');
+                end
+                
+            catch ME
+                app.Lamp.Color = "red";     % ステータスランプ赤
+                % エラー表示
+                for num = 1:1:length(ME.stack)
+                    % setTexttarea(app, {ME.stack(num,1).name,num2str(ME.stack(num,1).line)})
+                end
+                % setTexttarea(app, {ME.identifier,ME.message})
+            end
+        end
+
+        % 定数線の表示
+        function setXlines(app,time)
+            % 定数線
+            delete(app.xlines{1});
+            delete(app.xlines{2});
+            delete(app.xlines{3});
+            delete(app.xlines{4});
+            app.xlines{1} = xline(app.UIAxes1,time);
+            app.xlines{2} = xline(app.UIAxes2,time);
+            app.xlines{3} = xline(app.UIAxes3,time);
+            app.xlines{4} = xline(app.UIAxesAnalysis,time);
+        end
+        
+        % ログの取得、再プロット
+        function reload(app,EventName)
+            if max(strcmp(EventName,"ButtonPushed")) == 1
+                app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+                getLogfiles(app);   % ログファイル一覧を取得
+            end
+            getLogdata(app);    % ログデータを取得する
+            getLogvalues(app);  % ログ変数一覧を取得
+
+            % プロット初期化
+            cla(app.UIAxisCourse)
+            cla(app.UIAxes1)
+            cla(app.UIAxes2)
+            cla(app.UIAxes3)
+            cla(app.UIAxesAnalysis)
+
+            % 変数プロットのx軸設定
+            app.UIAxes1.XLim = [0 app.time(end,1)];
+            app.UIAxes2.XLim = [0 app.time(end,1)];
+            app.UIAxes3.XLim = [0 app.time(end,1)];
+            app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
+
+            % スライダー範囲の設定
+            app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+            app.TimesSlider.Value = app.time(1,1);      % スライダー位置初期化
+            
+
+            % 変数初期化
+            app.kgyro = 1;
+            app.kgyroKnob.Value = 1;
+            app.Spinner.Value = 1;
+
+            % コース座標計算
+            calcCourseplot(app);    % コース座標計算
+            
+            % コース描画
+            plotCourse(app)
+
+            % 変数プロット
+            plotVariableGraphs(app);
+        end
+        
+        % 設定用変数の保存
+        function saveVars(app)
+            folderDir = app.rootDir;
+            equations = {app.timeEditField.Value;
+                        app.velocityEditField.Value;
+                        app.angularVelocityEditField.Value;
+                        app.radsCheckBox.Value};
+            uistatus = {app.SwitchDirection.Value;
+                        app.Data1DropDown.Value;
+                        app.Data2DropDown.Value;
+                        app.Data3DropDown.Value;
+                        };
+
+            save("src/settingVars","folderDir","equations","uistatus");
+            setTexttarea(app, "設定保存完了")
+        end
+        
+        % データ処理
+        function procData(app,pos)
+            % 設定項目を取得
+            if strcmp(pos,"left") == 1
+                varName = app.DataAnalysisLDropDown.Value;  % 変数名取得
+                method = app.smoothLDropDown.Value; % 平滑化メソッドを取得
+                window = app.windowLSpinner.Value;  % 移動ウィンドウ数
+                normalizeState = app.normalizeLSwitch.Value;    % 正規化の有無
+                detrendState = app.detrendLSwitch.Value;        % トレンド除去の有無
+            elseif strcmp(pos,"right") == 1
+                varName = app.DataAnalysisRDropDown.Value;  % 変数名取得
+                method = app.smoothRDropDown.Value; % 平滑化メソッドを取得
+                window = app.windowRSpinner.Value;  % 移動ウィンドウ数
+                normalizeState = app.normalizeRSwitch.Value;    % 正規化の有無
+                detrendState = app.detrendRSwitch.Value;        % トレンド除去の有無
+            end
+            match = app.ylimmatchSwitch.Value;    % Y軸範囲一致設定を取得
+
+            yyaxis(app.UIAxesAnalysis,pos)      % 軸の左右を選択
+            ylabel(app.UIAxesAnalysis,varName); % y軸ラベルを表示
+            if strcmp(varName,"none") == 0  % 選択Dataがnone以外
+                varData = app.log.(varName); % ログデータを取得
+                
+                % データの平滑化
+                if strcmp(method,"none") == 0 % smoothがnone以外
+                    varData = smoothdata(varData,method,window); 
+                end
+                % データの正規化
+                if strcmp(normalizeState,"On") == 1
+                    varData = normalize(varData); 
+                end
+                % データのトレンド除去
+                if strcmp(detrendState,"On") == 1
+                    varData = detrend(varData); 
+                end
+
+                plot(app.UIAxesAnalysis,app.time,varData) 
+                setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+                
+
+                if strcmp(match,"On") == 1
+                    % Y軸の範囲設定を左右で一致させる
+
+                    % Y軸範囲の上限、下限を取得
+                    yyaxis(app.UIAxesAnalysis,"left")
+                    ylim = app.UIAxesAnalysis.YLim;
+                    yyaxis(app.UIAxesAnalysis,"right")
+                    ylim = [ylim app.UIAxesAnalysis.YLim];
+
+                    % 上限を最大値、下限を最小値にする
+                    yyaxis(app.UIAxesAnalysis,"left")
+                    app.UIAxesAnalysis.YLim = [min(ylim) max(ylim)];
+                    yyaxis(app.UIAxesAnalysis,"right")
+                    app.UIAxesAnalysis.YLim = [min(ylim) max(ylim)];
+                else
+                    % Y軸範囲をAuto変更にする
+                    yyaxis(app.UIAxesAnalysis,"left")
+                    app.UIAxesAnalysis.YLimMode = "auto";
+                    yyaxis(app.UIAxesAnalysis,"right")
+                    app.UIAxesAnalysis.YLimMode = "auto";
+                end
+            else
+                cla(app.UIAxesAnalysis) % none選択時はグラフ消去    
+            end
+        end
+        
+        function getTimeIndex(app,src,event)           
+            % グラフからデータを取り出す
+            X = event.Source.XData;
+            Y = event.Source.YData;
+
+            % マウス座標を取得
+            if class(event.Source) == "matlab.graphics.chart.primitive.Scatter"     % コース描画
+                Cp = get(app.UIAxisCourse,'CurrentPoint');
+            elseif class(event.Source) == "matlab.graphics.chart.primitive.Line"    % 変数グラフ
+                % どのグラフかを判別する
+                if strcmp(event.Source.Parent.Title.String,(app.Data1DropDown.Value))
+                    Cp = get(app.UIAxes1,'CurrentPoint');
+                elseif strcmp(event.Source.Parent.Title.String,(app.Data2DropDown.Value))
+                    Cp = get(app.UIAxes2,'CurrentPoint');
+                elseif strcmp(event.Source.Parent.Title.String,(app.Data3DropDown.Value))
+                    Cp = get(app.UIAxes3,'CurrentPoint');
+                end
+            end      
+
+            % クリック位置のXy座標
+            Xp = Cp(2,1);
+            Yp = Cp(2,2);
+
+            % クリック点に近い配列値のインデックス
+            if class(event.Source) == "matlab.graphics.chart.primitive.Scatter"     % コース描画
+                [dp,Ip] = min((X-Xp).^2+(Y-Yp).^2);
+            elseif class(event.Source) == "matlab.graphics.chart.primitive.Line"    % 変数グラフ
+                [dp,Ip] = min((X-Xp).^2);
+            end
+            timeIndex = app.course.Time(Ip);        % クリック点での時間を取得
+
+            setXlines(app,seconds(timeIndex));      % 定数線更新
+            app.TimesSlider.Value = seconds(timeIndex);  % スライドバー更新
+
+            % コース上に現在地をプロット
+            delete(app.marker)          % 前回値を削除
+            hold(app.UIAxisCourse, 'on');
+            app.marker = scatter(app.UIAxisCourse,app.course{timeIndex,'x'},app.course{timeIndex,'y'},"m",'filled');
+            hold(app.UIAxisCourse, 'off');           
+        end
+
+
+        
+        function plotVariableGraphs(app)
+            % 変数プロット
+            title(app.UIAxes1, app.Data1DropDown.Value)
+            title(app.UIAxes2, app.Data2DropDown.Value)
+            title(app.UIAxes3, app.Data3DropDown.Value)
+
+            if app.graphPositionBotton.Value == "On"
+                plot(app.UIAxes1,app.time,app.log.(app.Data1DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
+                plot(app.UIAxes2,app.time,app.log.(app.Data2DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
+                plot(app.UIAxes3,app.time,app.log.(app.Data3DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
+            else
+                plot(app.UIAxes1,app.time,app.log.(app.Data1DropDown.Value))
+                plot(app.UIAxes2,app.time,app.log.(app.Data2DropDown.Value))
+                plot(app.UIAxes3,app.time,app.log.(app.Data3DropDown.Value))
+            end
+
+            linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x')
+            setXlines(app,app.TimesSlider.Value);
+
+            procData(app,"right");
+            procData(app,"left");
+        end
+    end
+   
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Code that executes after component creation
+        function startupFcn(app)
+            % 起動時
+            try
+                % 設定用変数ファイルの読み込み
+                % 換算式
+                equations = {};
+                uistatus = {};
+                load("src/settingvars.mat")
+                app.timeEditField.Value = equations{1};
+                app.velocityEditField.Value = equations{2};
+                app.angularVelocityEditField.Value = equations{3};
+                app.radsCheckBox.Value = equations{4};
+
+                disp(uistatus)
+
+                app.SwitchDirection.Value = uistatus{1};
+                app.Data1DropDown.Value = uistatus{2};
+                app.Data2DropDown.Value = uistatus{3};
+                app.Data3DropDown.Value = uistatus{4};
+
+                % フォルダパス
+                app.rootDir = folderDir;
+                app.FolderButton.Text = app.rootDir;
+            catch ME
+                if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
+                    % 設定用変数ファイルが無い
+                end
+            end
+
+            app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+            getLogfiles(app);   % ログファイル一覧を取得
+            getLogdata(app);    % ログデータを取得する
+            getLogvalues(app);  % ログ変数一覧を取得
+
+            % スライダー範囲の設定
+            app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+            % 変数プロットのx軸設定
+            app.UIAxes1.XLim = [0 app.time(end,1)];
+            app.UIAxes2.XLim = [0 app.time(end,1)];
+            app.UIAxes3.XLim = [0 app.time(end,1)];
+            app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
+
+            % コース軸の設定
+            % カラーバー表示
+            c = colorbar(app.UIAxisCourse);
+            c.Label.String = 'velocity[mm/s]';
+            c.Label.FontSize = 12;
+            
+            % 軸設定
+            if strcmp(app.SwitchDirection.Value,'CW') == 1
+                app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
+                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
+            else
+                app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
+                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
+            end
+            app.UIAxisCourse.XTick = -10000:100:10000;
+            app.UIAxisCourse.YTick = -10000:100:10000;
+
+
+
+            % コース描画、変数グラフ表示
+            % コース座標計算
+            calcCourseplot(app);    % コース座標計算
+            
+            % コース描画
+            plotCourse(app)
+
+            % 変数プロット
+            plotVariableGraphs(app);
+
+            % 単位変更
+            if app.radsCheckBox.Value == 0
+                app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
+            elseif app.radsCheckBox.Value == 1
+                app.angularVelocitydegsLabel.Text = 'angularVelocity [rad/s] = ';
+            end
+        end
+
+        % Button pushed function: FolderButton
+        function FolderButtonPushed(app, event)
+            % フォルダー選択
+            app.rootDir = uigetdir;
+            if app.rootDir ~= 0
+                app.FolderButton.Text = app.rootDir;
+                getLogfiles(app);       % ログファイル一覧を取得
+            end
+        end
+
+        % Value changed function: LogDropDown
+        function LogDropDownValueChanged(app, event)
+            reload(app,event.EventName);
+        end
+
+        % Button pushed function: ReloadButton
+        function ReloadButtonPushed(app, event)
+            reload(app,event.EventName);
+            saveVars(app);
+        end
+
+        % Value changing function: TimesSlider
+        function TimesSliderValueChanging(app, event)
+            changingValue = event.Value;
+
+            t = round(changingValue,2) + (app.time(1,1)); % スライダ数値補正 小数点3桁目を揃える
+            if t > app.TimesSlider.Limits(2)
+                t = app.TimesSlider.Limits(2);
+            end
+            app.TimesSlider.Value = t;      % スライダー位置の補正
+            t = seconds(t);                 % duration 配列に変換
+
+            % コース上に現在地をプロット
+            delete(app.marker)          % 前回値を削除
+            hold(app.UIAxisCourse, 'on');
+            app.marker = scatter(app.UIAxisCourse,app.course{t,'x'},app.course{t,'y'},"m",'filled');
+            hold(app.UIAxisCourse, 'off');
+            % 変数グラフ上にプロット
+            setXlines(app,app.TimesSlider.Value);
+            
+        end
+
+        % Value changed function: Data1DropDown
+        function Data1DropDownValueChanged(app, event)
+            value = app.Data1DropDown.Value;
+            plot(app.UIAxes1,app.time,app.log.(value))
+            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            title(app.UIAxes1, value)   % タイトル
+        end
+
+        % Value changed function: Data2DropDown
+        function Data2DropDownValueChanged(app, event)
+            value = app.Data2DropDown.Value;
+            plot(app.UIAxes2,app.time,app.log.(value))
+            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            title(app.UIAxes2, value)   % タイトル
+        end
+
+        % Value changed function: Data3DropDown
+        function Data3DropDownValueChanged(app, event)
+            value = app.Data3DropDown.Value;
+            plot(app.UIAxes3,app.time,app.log.(value))
+            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            title(app.UIAxes3, value)   % タイトル
+        end
+
+        % Value changed function: DataAnalysisLDropDown
+        function DataAnalysisLDropDownValueChanged(app, event)
+            procData(app,"left");
+        end
+
+        % Value changed function: DataAnalysisRDropDown
+        function DataAnalysisRDropDownValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changed function: smoothLDropDown
+        function smoothLDropDownValueChanged(app, event)
+            procData(app,"left");
+        end
+
+        % Value changed function: smoothRDropDown
+        function smoothRDropDownValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changed function: windowLSpinner
+        function windowLSpinnerValueChanged(app, event)
+            procData(app,"left");
+        end
+
+        % Value changed function: windowRSpinner
+        function windowRSpinnerValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changed function: normalizeLSwitch
+        function normalizeLSwitchValueChanged(app, event)
+            procData(app,"left");
+        end
+
+        % Value changed function: normalizeRSwitch
+        function normalizeRSwitchValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changed function: detrendLSwitch
+        function detrendLSwitchValueChanged(app, event)
+            procData(app,"left");
+        end
+
+        % Value changed function: detrendRSwitch
+        function detrendRSwitchValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changed function: ylimmatchSwitch
+        function ylimmatchSwitchValueChanged(app, event)
+            procData(app,"right");
+        end
+
+        % Value changing function: Spinner
+        function SpinnerValueChanging(app, event)
+            changingValue = event.Value;
+            app.kgyroKnob.Value = changingValue;
+            
+            app.kgyro = changingValue; % 角度補正係数にノブの値を代入
+            calcCourseplot(app);    % コース座標計算
+            % コース描画
+            plotCourse(app)
+        end
+
+        % Value changing function: kgyroKnob
+        function kgyroKnobValueChanging(app, event)
+            changingValue = event.Value;
+            app.Spinner.Value = changingValue;
+            
+            app.kgyro = changingValue; % 角度補正係数にノブの値を代入
+            calcCourseplot(app);    % コース座標計算
+            % コース描画
+            plotCourse(app)
+        end
+
+        % Value changed function: SwitchDirection
+        function SwitchDirectionValueChanged(app, event)
+            if strcmp(app.SwitchDirection.Value,'CW') == 1
+                app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
+                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
+            else
+                app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
+                app.UIAxisCourse.YLim = [-app.courseSize(2,2) -app.courseSize(2,1)];
+            end
+        end
+
+        % Close request function: UIFigure
+        function UIFigureCloseRequest(app, event)
+            saveVars(app); % 変数保存
+            delete(app)
+        end
+
+        % Value changed function: radsCheckBox
+        function radsCheckBoxValueChanged(app, event)
+            value = app.radsCheckBox.Value;
+            if value == 0
+                app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
+            elseif value == 1
+                app.angularVelocitydegsLabel.Text = 'angularVelocity [rad/s] = ';
+            end
+        end
+
+        % Value changed function: graphPositionBotton
+        function graphPositionBottonValueChanged(app, event)
+            value = app.graphPositionBotton.Value;
+            disp(value)
+            plotVariableGraphs(app);
+        end
+
+        % Value changed function: windowSlider
+        function windowSliderValueChanged(app, event)
+            calcShortCutplot(app);
+            plotCourse(app);
+        end
+
+        % Value changed function: plotSwitch
+        function plotSwitchValueChanged(app, event)
+            plotCourse(app);
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [100 100 1263 713];
+            app.UIFigure.Name = 'MATLAB App';
+            app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
+
+            % Create UIAxisCourse
+            app.UIAxisCourse = uiaxes(app.UIFigure);
+            xlabel(app.UIAxisCourse, 'X[mm]')
+            ylabel(app.UIAxisCourse, 'Y[mm]')
+            zlabel(app.UIAxisCourse, 'Z[mm]')
+            app.UIAxisCourse.XLim = [0 1];
+            app.UIAxisCourse.YLim = [0 1];
+            app.UIAxisCourse.XGrid = 'on';
+            app.UIAxisCourse.YGrid = 'on';
+            app.UIAxisCourse.ColorOrder = [0 0.447058823529412 0.741176470588235;0.850980392156863 0.325490196078431 0.0980392156862745;0.929411764705882 0.694117647058824 0.125490196078431;0.494117647058824 0.184313725490196 0.556862745098039;0.466666666666667 0.674509803921569 0.188235294117647];
+            app.UIAxisCourse.Position = [1 81 497 581];
+
+            % Create Lamp
+            app.Lamp = uilamp(app.UIFigure);
+            app.Lamp.Position = [10 681 22 22];
+
+            % Create FolderButton
+            app.FolderButton = uibutton(app.UIFigure, 'push');
+            app.FolderButton.ButtonPushedFcn = createCallbackFcn(app, @FolderButtonPushed, true);
+            app.FolderButton.Position = [57 680 228 23];
+            app.FolderButton.Text = 'F:\Dropbox\Document\robotrace\Log\v2';
+
+            % Create FolderpathLabel
+            app.FolderpathLabel = uilabel(app.UIFigure);
+            app.FolderpathLabel.Position = [45 681 66 22];
+            app.FolderpathLabel.Text = 'Folder path';
+
+            % Create TextArea
+            app.TextArea = uitextarea(app.UIFigure);
+            app.TextArea.FontSize = 9;
+            app.TextArea.Position = [502 10 164 199];
+
+            % Create ReloadButton
+            app.ReloadButton = uibutton(app.UIFigure, 'push');
+            app.ReloadButton.ButtonPushedFcn = createCallbackFcn(app, @ReloadButtonPushed, true);
+            app.ReloadButton.Position = [417 681 100 22];
+            app.ReloadButton.Text = 'Reload';
+
+            % Create Spinner
+            app.Spinner = uispinner(app.UIFigure);
+            app.Spinner.Step = 0.001;
+            app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
+            app.Spinner.Limits = [0.9 1.4];
+            app.Spinner.Position = [546 484 85 22];
+            app.Spinner.Value = 1;
+
+            % Create kgyroKnobLabel
+            app.kgyroKnobLabel = uilabel(app.UIFigure);
+            app.kgyroKnobLabel.HorizontalAlignment = 'center';
+            app.kgyroKnobLabel.Position = [566 615 35 22];
+            app.kgyroKnobLabel.Text = 'kgyro';
+
+            % Create kgyroKnob
+            app.kgyroKnob = uiknob(app.UIFigure, 'continuous');
+            app.kgyroKnob.Limits = [0.9 1.4];
+            app.kgyroKnob.ValueChangingFcn = createCallbackFcn(app, @kgyroKnobValueChanging, true);
+            app.kgyroKnob.Position = [554 534 60 60];
+            app.kgyroKnob.Value = 1;
+
+            % Create SwitchDirection
+            app.SwitchDirection = uiswitch(app.UIFigure, 'toggle');
+            app.SwitchDirection.Items = {'CCW', 'CW'};
+            app.SwitchDirection.Orientation = 'horizontal';
+            app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
+            app.SwitchDirection.Position = [561 441 45 20];
+            app.SwitchDirection.Value = 'CW';
+
+            % Create TimesLabel
+            app.TimesLabel = uilabel(app.UIFigure);
+            app.TimesLabel.HorizontalAlignment = 'right';
+            app.TimesLabel.Position = [436 24 48 22];
+            app.TimesLabel.Text = 'Time [s]';
+
+            % Create TimesSlider
+            app.TimesSlider = uislider(app.UIFigure);
+            app.TimesSlider.ValueChangingFcn = createCallbackFcn(app, @TimesSliderValueChanging, true);
+            app.TimesSlider.Position = [21 54 394 3];
+
+            % Create LogDropDownLabel
+            app.LogDropDownLabel = uilabel(app.UIFigure);
+            app.LogDropDownLabel.HorizontalAlignment = 'right';
+            app.LogDropDownLabel.Position = [241 681 26 22];
+            app.LogDropDownLabel.Text = 'Log';
+
+            % Create LogDropDown
+            app.LogDropDown = uidropdown(app.UIFigure);
+            app.LogDropDown.Items = {'option'};
+            app.LogDropDown.ValueChangedFcn = createCallbackFcn(app, @LogDropDownValueChanged, true);
+            app.LogDropDown.Position = [282 681 100 22];
+            app.LogDropDown.Value = 'option';
+
+            % Create TabGroup
+            app.TabGroup = uitabgroup(app.UIFigure);
+            app.TabGroup.Position = [674 -1 590 715];
+
+            % Create GraphsTab
+            app.GraphsTab = uitab(app.TabGroup);
+            app.GraphsTab.Title = 'Graphs';
+
+            % Create UIAxes3
+            app.UIAxes3 = uiaxes(app.GraphsTab);
+            title(app.UIAxes3, 'Title')
+            xlabel(app.UIAxes3, 'Time [s]')
+            app.UIAxes3.Position = [34 25 542 185];
+
+            % Create UIAxes2
+            app.UIAxes2 = uiaxes(app.GraphsTab);
+            title(app.UIAxes2, 'Title')
+            xlabel(app.UIAxes2, 'Time [s]')
+            app.UIAxes2.Position = [34 258 542 185];
+
+            % Create UIAxes1
+            app.UIAxes1 = uiaxes(app.GraphsTab);
+            title(app.UIAxes1, 'Title')
+            xlabel(app.UIAxes1, 'Time [s]')
+            app.UIAxes1.Position = [34 478 542 185];
+
+            % Create Data1DropDownLabel
+            app.Data1DropDownLabel = uilabel(app.GraphsTab);
+            app.Data1DropDownLabel.HorizontalAlignment = 'right';
+            app.Data1DropDownLabel.Position = [42 662 38 22];
+            app.Data1DropDownLabel.Text = 'Data1';
+
+            % Create Data1DropDown
+            app.Data1DropDown = uidropdown(app.GraphsTab);
+            app.Data1DropDown.ValueChangedFcn = createCallbackFcn(app, @Data1DropDownValueChanged, true);
+            app.Data1DropDown.Position = [95 662 100 22];
+
+            % Create Data2DropDownLabel
+            app.Data2DropDownLabel = uilabel(app.GraphsTab);
+            app.Data2DropDownLabel.HorizontalAlignment = 'right';
+            app.Data2DropDownLabel.Position = [42 442 38 22];
+            app.Data2DropDownLabel.Text = 'Data2';
+
+            % Create Data2DropDown
+            app.Data2DropDown = uidropdown(app.GraphsTab);
+            app.Data2DropDown.ValueChangedFcn = createCallbackFcn(app, @Data2DropDownValueChanged, true);
+            app.Data2DropDown.Position = [95 442 100 22];
+
+            % Create Data3DropDownLabel
+            app.Data3DropDownLabel = uilabel(app.GraphsTab);
+            app.Data3DropDownLabel.HorizontalAlignment = 'right';
+            app.Data3DropDownLabel.Position = [34 209 38 22];
+            app.Data3DropDownLabel.Text = 'Data3';
+
+            % Create Data3DropDown
+            app.Data3DropDown = uidropdown(app.GraphsTab);
+            app.Data3DropDown.ValueChangedFcn = createCallbackFcn(app, @Data3DropDownValueChanged, true);
+            app.Data3DropDown.Position = [87 209 100 22];
+
+            % Create AnalysisTab
+            app.AnalysisTab = uitab(app.TabGroup);
+            app.AnalysisTab.Title = 'Analysis';
+
+            % Create UIAxesAnalysis
+            app.UIAxesAnalysis = uiaxes(app.AnalysisTab);
+            xlabel(app.UIAxesAnalysis, 'Time [s]')
+            app.UIAxesAnalysis.Position = [17 25 559 343];
+
+            % Create DataLabel
+            app.DataLabel = uilabel(app.AnalysisTab);
+            app.DataLabel.HorizontalAlignment = 'right';
+            app.DataLabel.Position = [42 662 38 22];
+            app.DataLabel.Text = 'Data ';
+
+            % Create DataDropDownLabel_2
+            app.DataDropDownLabel_2 = uilabel(app.AnalysisTab);
+            app.DataDropDownLabel_2.HorizontalAlignment = 'right';
+            app.DataDropDownLabel_2.Position = [349 662 38 22];
+            app.DataDropDownLabel_2.Text = 'Data';
+
+            % Create smoothDropDown_2Label
+            app.smoothDropDown_2Label = uilabel(app.AnalysisTab);
+            app.smoothDropDown_2Label.HorizontalAlignment = 'right';
+            app.smoothDropDown_2Label.Position = [342 614 44 22];
+            app.smoothDropDown_2Label.Text = 'smooth';
+
+            % Create windowSpinner_2Label
+            app.windowSpinner_2Label = uilabel(app.AnalysisTab);
+            app.windowSpinner_2Label.HorizontalAlignment = 'right';
+            app.windowSpinner_2Label.Position = [341 583 45 22];
+            app.windowSpinner_2Label.Text = 'window';
+
+            % Create windowRSpinner
+            app.windowRSpinner = uispinner(app.AnalysisTab);
+            app.windowRSpinner.Limits = [2 Inf];
+            app.windowRSpinner.ValueChangedFcn = createCallbackFcn(app, @windowRSpinnerValueChanged, true);
+            app.windowRSpinner.Position = [401 583 52 22];
+            app.windowRSpinner.Value = 2;
+
+            % Create smoothRDropDown
+            app.smoothRDropDown = uidropdown(app.AnalysisTab);
+            app.smoothRDropDown.Items = {'none', 'movmean', 'movmedian', 'gaussian', 'lowess', 'loess', 'rlowess', 'rloess', 'sgolay'};
+            app.smoothRDropDown.ValueChangedFcn = createCallbackFcn(app, @smoothRDropDownValueChanged, true);
+            app.smoothRDropDown.Position = [401 614 112 22];
+            app.smoothRDropDown.Value = 'none';
+
+            % Create DataAnalysisRDropDown
+            app.DataAnalysisRDropDown = uidropdown(app.AnalysisTab);
+            app.DataAnalysisRDropDown.ValueChangedFcn = createCallbackFcn(app, @DataAnalysisRDropDownValueChanged, true);
+            app.DataAnalysisRDropDown.Position = [402 662 111 22];
+
+            % Create windowSpinnerLabel
+            app.windowSpinnerLabel = uilabel(app.AnalysisTab);
+            app.windowSpinnerLabel.HorizontalAlignment = 'right';
+            app.windowSpinnerLabel.Position = [34 583 45 22];
+            app.windowSpinnerLabel.Text = 'window';
+
+            % Create windowLSpinner
+            app.windowLSpinner = uispinner(app.AnalysisTab);
+            app.windowLSpinner.Limits = [2 Inf];
+            app.windowLSpinner.ValueChangedFcn = createCallbackFcn(app, @windowLSpinnerValueChanged, true);
+            app.windowLSpinner.Position = [94 583 52 22];
+            app.windowLSpinner.Value = 2;
+
+            % Create FunctionLabel
+            app.FunctionLabel = uilabel(app.AnalysisTab);
+            app.FunctionLabel.HorizontalAlignment = 'right';
+            app.FunctionLabel.Position = [36 614 44 22];
+            app.FunctionLabel.Text = 'smooth';
+
+            % Create smoothLDropDown
+            app.smoothLDropDown = uidropdown(app.AnalysisTab);
+            app.smoothLDropDown.Items = {'none', 'movmean', 'movmedian', 'gaussian', 'lowess', 'loess', 'rlowess', 'rloess', 'sgolay'};
+            app.smoothLDropDown.ValueChangedFcn = createCallbackFcn(app, @smoothLDropDownValueChanged, true);
+            app.smoothLDropDown.Position = [95 614 109 22];
+            app.smoothLDropDown.Value = 'none';
+
+            % Create DataAnalysisLDropDown
+            app.DataAnalysisLDropDown = uidropdown(app.AnalysisTab);
+            app.DataAnalysisLDropDown.ValueChangedFcn = createCallbackFcn(app, @DataAnalysisLDropDownValueChanged, true);
+            app.DataAnalysisLDropDown.Position = [95 662 109 22];
+
+            % Create normalizeSwitchLabel
+            app.normalizeSwitchLabel = uilabel(app.AnalysisTab);
+            app.normalizeSwitchLabel.HorizontalAlignment = 'center';
+            app.normalizeSwitchLabel.FontColor = [0.149 0.149 0.149];
+            app.normalizeSwitchLabel.Position = [36 550 57 22];
+            app.normalizeSwitchLabel.Text = 'normalize';
+
+            % Create normalizeLSwitch
+            app.normalizeLSwitch = uiswitch(app.AnalysisTab, 'slider');
+            app.normalizeLSwitch.ValueChangedFcn = createCallbackFcn(app, @normalizeLSwitchValueChanged, true);
+            app.normalizeLSwitch.FontColor = [0.149 0.149 0.149];
+            app.normalizeLSwitch.Position = [124 551 45 20];
+
+            % Create detrendSwitchLabel
+            app.detrendSwitchLabel = uilabel(app.AnalysisTab);
+            app.detrendSwitchLabel.HorizontalAlignment = 'center';
+            app.detrendSwitchLabel.Position = [42 514 46 22];
+            app.detrendSwitchLabel.Text = 'detrend';
+
+            % Create detrendLSwitch
+            app.detrendLSwitch = uiswitch(app.AnalysisTab, 'slider');
+            app.detrendLSwitch.ValueChangedFcn = createCallbackFcn(app, @detrendLSwitchValueChanged, true);
+            app.detrendLSwitch.Position = [124 515 45 20];
+
+            % Create normalizeSwitch_2Label
+            app.normalizeSwitch_2Label = uilabel(app.AnalysisTab);
+            app.normalizeSwitch_2Label.HorizontalAlignment = 'center';
+            app.normalizeSwitch_2Label.Position = [341 551 57 22];
+            app.normalizeSwitch_2Label.Text = 'normalize';
+
+            % Create normalizeRSwitch
+            app.normalizeRSwitch = uiswitch(app.AnalysisTab, 'slider');
+            app.normalizeRSwitch.ValueChangedFcn = createCallbackFcn(app, @normalizeRSwitchValueChanged, true);
+            app.normalizeRSwitch.Position = [429 552 45 20];
+
+            % Create detrendSwitch_2Label
+            app.detrendSwitch_2Label = uilabel(app.AnalysisTab);
+            app.detrendSwitch_2Label.HorizontalAlignment = 'center';
+            app.detrendSwitch_2Label.Position = [346 515 46 22];
+            app.detrendSwitch_2Label.Text = 'detrend';
+
+            % Create detrendRSwitch
+            app.detrendRSwitch = uiswitch(app.AnalysisTab, 'slider');
+            app.detrendRSwitch.ValueChangedFcn = createCallbackFcn(app, @detrendRSwitchValueChanged, true);
+            app.detrendRSwitch.Position = [428 516 45 20];
+
+            % Create ylimmatchSwitchLabel
+            app.ylimmatchSwitchLabel = uilabel(app.AnalysisTab);
+            app.ylimmatchSwitchLabel.HorizontalAlignment = 'center';
+            app.ylimmatchSwitchLabel.Position = [251 478 62 22];
+            app.ylimmatchSwitchLabel.Text = 'ylim match';
+
+            % Create ylimmatchSwitch
+            app.ylimmatchSwitch = uiswitch(app.AnalysisTab, 'slider');
+            app.ylimmatchSwitch.Orientation = 'vertical';
+            app.ylimmatchSwitch.ValueChangedFcn = createCallbackFcn(app, @ylimmatchSwitchValueChanged, true);
+            app.ylimmatchSwitch.Position = [272 529 20 45];
+
+            % Create SettingTab
+            app.SettingTab = uitab(app.TabGroup);
+            app.SettingTab.Title = 'Setting';
+
+            % Create velocitymmsLabel
+            app.velocitymmsLabel = uilabel(app.SettingTab);
+            app.velocitymmsLabel.HorizontalAlignment = 'right';
+            app.velocitymmsLabel.Position = [62 603 99 22];
+            app.velocitymmsLabel.Text = 'velocity [mm/s] = ';
+
+            % Create velocityEditField
+            app.velocityEditField = uieditfield(app.SettingTab, 'text');
+            app.velocityEditField.Position = [176 603 326 22];
+            app.velocityEditField.Value = 'encCurrentN / 60.074 * 1000';
+
+            % Create angularVelocitydegsLabel
+            app.angularVelocitydegsLabel = uilabel(app.SettingTab);
+            app.angularVelocitydegsLabel.HorizontalAlignment = 'right';
+            app.angularVelocitydegsLabel.Position = [21 573 140 22];
+            app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
+
+            % Create angularVelocityEditField
+            app.angularVelocityEditField = uieditfield(app.SettingTab, 'text');
+            app.angularVelocityEditField.Position = [176 573 326 22];
+            app.angularVelocityEditField.Value = 'gyroVal_Z / 10000 * -1';
+
+            % Create velocitymmsLabel_2
+            app.velocitymmsLabel_2 = uilabel(app.SettingTab);
+            app.velocitymmsLabel_2.HorizontalAlignment = 'right';
+            app.velocitymmsLabel_2.Position = [62 632 99 22];
+            app.velocitymmsLabel_2.Text = 'time [s] = ';
+
+            % Create timeEditField
+            app.timeEditField = uieditfield(app.SettingTab, 'text');
+            app.timeEditField.Position = [176 632 326 22];
+            app.timeEditField.Value = 'cntlog / 1000';
+
+            % Create TranslateequationsLabel
+            app.TranslateequationsLabel = uilabel(app.SettingTab);
+            app.TranslateequationsLabel.HorizontalAlignment = 'center';
+            app.TranslateequationsLabel.FontSize = 18;
+            app.TranslateequationsLabel.Position = [17 662 162 23];
+            app.TranslateequationsLabel.Text = 'Translate equations';
+
+            % Create radsCheckBox
+            app.radsCheckBox = uicheckbox(app.SettingTab);
+            app.radsCheckBox.ValueChangedFcn = createCallbackFcn(app, @radsCheckBoxValueChanged, true);
+            app.radsCheckBox.Text = '[rad/s]';
+            app.radsCheckBox.Position = [521 573 55 22];
+            app.radsCheckBox.Value = true;
+
+            % Create SwitchLabel
+            app.SwitchLabel = uilabel(app.SettingTab);
+            app.SwitchLabel.HorizontalAlignment = 'center';
+            app.SwitchLabel.Position = [17 485 347 22];
+            app.SwitchLabel.Text = {'Click on the variable graph to display the position on the course'; ''};
+
+            % Create graphPositionBotton
+            app.graphPositionBotton = uiswitch(app.SettingTab, 'slider');
+            app.graphPositionBotton.ValueChangedFcn = createCallbackFcn(app, @graphPositionBottonValueChanged, true);
+            app.graphPositionBotton.Position = [494 486 45 20];
+
+            % Create ShortcutTab
+            app.ShortcutTab = uitab(app.TabGroup);
+            app.ShortcutTab.Title = 'Short cut';
+
+            % Create windowSlider
+            app.windowSlider = uislider(app.ShortcutTab);
+            app.windowSlider.Limits = [0 50];
+            app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
+            app.windowSlider.Position = [211 367 150 3];
+
+            % Create windowSliderLabel
+            app.windowSliderLabel = uilabel(app.ShortcutTab);
+            app.windowSliderLabel.HorizontalAlignment = 'right';
+            app.windowSliderLabel.Position = [144 358 45 22];
+            app.windowSliderLabel.Text = 'window';
+
+            % Create plotSwitchLabel
+            app.plotSwitchLabel = uilabel(app.ShortcutTab);
+            app.plotSwitchLabel.HorizontalAlignment = 'center';
+            app.plotSwitchLabel.Position = [270 473 25 22];
+            app.plotSwitchLabel.Text = 'plot';
+
+            % Create plotSwitch
+            app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
+            app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
+            app.plotSwitch.Position = [259 510 45 20];
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = logAnalysis
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            % Execute the startup function
+            runStartupFcn(app, @startupFcn)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
