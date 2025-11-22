@@ -7,12 +7,12 @@ classdef logAnalysis < matlab.apps.AppBase
         Button_Rotate             matlab.ui.control.Button
         TabGroup                  matlab.ui.container.TabGroup
         GraphsTab                 matlab.ui.container.Tab
+        Data1DropDown             matlab.ui.control.DropDown
+        Data1DropDownLabel        matlab.ui.control.Label
         Data3DropDown             matlab.ui.control.DropDown
         Data3DropDownLabel        matlab.ui.control.Label
         Data2DropDown             matlab.ui.control.DropDown
         Data2DropDownLabel        matlab.ui.control.Label
-        Data1DropDown             matlab.ui.control.DropDown
-        Data1DropDownLabel        matlab.ui.control.Label
         UIAxes1                   matlab.ui.control.UIAxes
         UIAxes2                   matlab.ui.control.UIAxes
         UIAxes3                   matlab.ui.control.UIAxes
@@ -550,6 +550,9 @@ classdef logAnalysis < matlab.apps.AppBase
             title(app.UIAxes1, app.Data1DropDown.Value)
             title(app.UIAxes2, app.Data2DropDown.Value)
             title(app.UIAxes3, app.Data3DropDown.Value)
+            app.UIAxes1.Title.Visible = "off";
+            app.UIAxes2.Title.Visible = "off";
+            app.UIAxes3.Title.Visible = "off";
 
             if app.graphPositionBotton.Value == "On"
                 plot(app.UIAxes1,app.time,app.log.(app.Data1DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
@@ -745,6 +748,7 @@ classdef logAnalysis < matlab.apps.AppBase
             plot(app.UIAxes1,app.time,app.log.(value))
             setXlines(app,app.TimesSlider.Value); %  X定数線を更新
             title(app.UIAxes1, value)   % タイトル
+            app.UIAxes1.Title.Visible = "off";
         end
 
         % Value changed function: Data2DropDown
@@ -753,6 +757,7 @@ classdef logAnalysis < matlab.apps.AppBase
             plot(app.UIAxes2,app.time,app.log.(value))
             setXlines(app,app.TimesSlider.Value); %  X定数線を更新
             title(app.UIAxes2, value)   % タイトル
+            app.UIAxes2.Title.Visible = "off";
         end
 
         % Value changed function: Data3DropDown
@@ -761,6 +766,7 @@ classdef logAnalysis < matlab.apps.AppBase
             plot(app.UIAxes3,app.time,app.log.(value))
             setXlines(app,app.TimesSlider.Value); %  X定数線を更新
             title(app.UIAxes3, value)   % タイトル
+            app.UIAxes3.Title.Visible = "off";
         end
 
         % Value changed function: DataAnalysisLDropDown
@@ -995,7 +1001,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % Create TabGroup
             app.TabGroup = uitabgroup(app.UIFigure);
-            app.TabGroup.Position = [674 -1 590 715];
+            app.TabGroup.Position = [674 0 590 714];
 
             % Create GraphsTab
             app.GraphsTab = uitab(app.TabGroup);
@@ -1003,54 +1009,51 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % Create UIAxes3
             app.UIAxes3 = uiaxes(app.GraphsTab);
-            title(app.UIAxes3, 'Title')
             xlabel(app.UIAxes3, 'Time [s]')
-            app.UIAxes3.Position = [24 25 552 185];
+            app.UIAxes3.Position = [25 5 552 185];
 
             % Create UIAxes2
             app.UIAxes2 = uiaxes(app.GraphsTab);
-            title(app.UIAxes2, 'Title')
             xlabel(app.UIAxes2, 'Time [s]')
-            app.UIAxes2.Position = [24 258 552 185];
+            app.UIAxes2.Position = [24 235 552 185];
 
             % Create UIAxes1
             app.UIAxes1 = uiaxes(app.GraphsTab);
-            title(app.UIAxes1, 'Title')
             xlabel(app.UIAxes1, 'Time [s]')
-            app.UIAxes1.Position = [24 478 552 185];
-
-            % Create Data1DropDownLabel
-            app.Data1DropDownLabel = uilabel(app.GraphsTab);
-            app.Data1DropDownLabel.HorizontalAlignment = 'right';
-            app.Data1DropDownLabel.Position = [63 662 38 22];
-            app.Data1DropDownLabel.Text = 'Data1';
-
-            % Create Data1DropDown
-            app.Data1DropDown = uidropdown(app.GraphsTab);
-            app.Data1DropDown.ValueChangedFcn = createCallbackFcn(app, @Data1DropDownValueChanged, true);
-            app.Data1DropDown.Position = [116 662 100 22];
+            app.UIAxes1.Position = [24 467 552 185];
 
             % Create Data2DropDownLabel
             app.Data2DropDownLabel = uilabel(app.GraphsTab);
             app.Data2DropDownLabel.HorizontalAlignment = 'right';
-            app.Data2DropDownLabel.Position = [63 442 38 22];
+            app.Data2DropDownLabel.Position = [217 425 38 22];
             app.Data2DropDownLabel.Text = 'Data2';
 
             % Create Data2DropDown
             app.Data2DropDown = uidropdown(app.GraphsTab);
             app.Data2DropDown.ValueChangedFcn = createCallbackFcn(app, @Data2DropDownValueChanged, true);
-            app.Data2DropDown.Position = [116 442 100 22];
+            app.Data2DropDown.Position = [269 425 115 22];
 
             % Create Data3DropDownLabel
             app.Data3DropDownLabel = uilabel(app.GraphsTab);
             app.Data3DropDownLabel.HorizontalAlignment = 'right';
-            app.Data3DropDownLabel.Position = [63 209 38 22];
+            app.Data3DropDownLabel.Position = [217 195 38 22];
             app.Data3DropDownLabel.Text = 'Data3';
 
             % Create Data3DropDown
             app.Data3DropDown = uidropdown(app.GraphsTab);
             app.Data3DropDown.ValueChangedFcn = createCallbackFcn(app, @Data3DropDownValueChanged, true);
-            app.Data3DropDown.Position = [116 209 100 22];
+            app.Data3DropDown.Position = [269 195 115 22];
+
+            % Create Data1DropDownLabel
+            app.Data1DropDownLabel = uilabel(app.GraphsTab);
+            app.Data1DropDownLabel.HorizontalAlignment = 'right';
+            app.Data1DropDownLabel.Position = [216 653 38 22];
+            app.Data1DropDownLabel.Text = 'Data1';
+
+            % Create Data1DropDown
+            app.Data1DropDown = uidropdown(app.GraphsTab);
+            app.Data1DropDown.ValueChangedFcn = createCallbackFcn(app, @Data1DropDownValueChanged, true);
+            app.Data1DropDown.Position = [269 653 115 22];
 
             % Create AnalysisTab
             app.AnalysisTab = uitab(app.TabGroup);
@@ -1059,139 +1062,139 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create UIAxesAnalysis
             app.UIAxesAnalysis = uiaxes(app.AnalysisTab);
             xlabel(app.UIAxesAnalysis, 'Time [s]')
-            app.UIAxesAnalysis.Position = [17 25 559 437];
+            app.UIAxesAnalysis.Position = [17 24 559 437];
 
             % Create DataLabel
             app.DataLabel = uilabel(app.AnalysisTab);
             app.DataLabel.HorizontalAlignment = 'right';
-            app.DataLabel.Position = [42 662 38 22];
+            app.DataLabel.Position = [42 661 38 22];
             app.DataLabel.Text = 'Data ';
 
             % Create DataDropDownLabel_2
             app.DataDropDownLabel_2 = uilabel(app.AnalysisTab);
             app.DataDropDownLabel_2.HorizontalAlignment = 'right';
-            app.DataDropDownLabel_2.Position = [349 662 38 22];
+            app.DataDropDownLabel_2.Position = [349 661 38 22];
             app.DataDropDownLabel_2.Text = 'Data';
 
             % Create smoothDropDown_2Label
             app.smoothDropDown_2Label = uilabel(app.AnalysisTab);
             app.smoothDropDown_2Label.HorizontalAlignment = 'right';
-            app.smoothDropDown_2Label.Position = [342 614 44 22];
+            app.smoothDropDown_2Label.Position = [342 613 44 22];
             app.smoothDropDown_2Label.Text = 'smooth';
 
             % Create windowSpinner_2Label
             app.windowSpinner_2Label = uilabel(app.AnalysisTab);
             app.windowSpinner_2Label.HorizontalAlignment = 'right';
-            app.windowSpinner_2Label.Position = [341 583 45 22];
+            app.windowSpinner_2Label.Position = [341 582 45 22];
             app.windowSpinner_2Label.Text = 'window';
 
             % Create windowRSpinner
             app.windowRSpinner = uispinner(app.AnalysisTab);
             app.windowRSpinner.Limits = [2 Inf];
             app.windowRSpinner.ValueChangedFcn = createCallbackFcn(app, @windowRSpinnerValueChanged, true);
-            app.windowRSpinner.Position = [401 583 52 22];
+            app.windowRSpinner.Position = [401 582 52 22];
             app.windowRSpinner.Value = 2;
 
             % Create smoothRDropDown
             app.smoothRDropDown = uidropdown(app.AnalysisTab);
             app.smoothRDropDown.Items = {'none', 'movmean', 'movmedian', 'gaussian', 'lowess', 'loess', 'rlowess', 'rloess', 'sgolay'};
             app.smoothRDropDown.ValueChangedFcn = createCallbackFcn(app, @smoothRDropDownValueChanged, true);
-            app.smoothRDropDown.Position = [401 614 112 22];
+            app.smoothRDropDown.Position = [401 613 112 22];
             app.smoothRDropDown.Value = 'none';
 
             % Create DataAnalysisRDropDown
             app.DataAnalysisRDropDown = uidropdown(app.AnalysisTab);
             app.DataAnalysisRDropDown.ValueChangedFcn = createCallbackFcn(app, @DataAnalysisRDropDownValueChanged, true);
-            app.DataAnalysisRDropDown.Position = [402 662 111 22];
+            app.DataAnalysisRDropDown.Position = [402 661 111 22];
 
             % Create windowSpinnerLabel
             app.windowSpinnerLabel = uilabel(app.AnalysisTab);
             app.windowSpinnerLabel.HorizontalAlignment = 'right';
-            app.windowSpinnerLabel.Position = [34 583 45 22];
+            app.windowSpinnerLabel.Position = [34 582 45 22];
             app.windowSpinnerLabel.Text = 'window';
 
             % Create windowLSpinner
             app.windowLSpinner = uispinner(app.AnalysisTab);
             app.windowLSpinner.Limits = [2 Inf];
             app.windowLSpinner.ValueChangedFcn = createCallbackFcn(app, @windowLSpinnerValueChanged, true);
-            app.windowLSpinner.Position = [94 583 52 22];
+            app.windowLSpinner.Position = [94 582 52 22];
             app.windowLSpinner.Value = 2;
 
             % Create FunctionLabel
             app.FunctionLabel = uilabel(app.AnalysisTab);
             app.FunctionLabel.HorizontalAlignment = 'right';
-            app.FunctionLabel.Position = [36 614 44 22];
+            app.FunctionLabel.Position = [36 613 44 22];
             app.FunctionLabel.Text = 'smooth';
 
             % Create smoothLDropDown
             app.smoothLDropDown = uidropdown(app.AnalysisTab);
             app.smoothLDropDown.Items = {'none', 'movmean', 'movmedian', 'gaussian', 'lowess', 'loess', 'rlowess', 'rloess', 'sgolay'};
             app.smoothLDropDown.ValueChangedFcn = createCallbackFcn(app, @smoothLDropDownValueChanged, true);
-            app.smoothLDropDown.Position = [95 614 109 22];
+            app.smoothLDropDown.Position = [95 613 109 22];
             app.smoothLDropDown.Value = 'none';
 
             % Create DataAnalysisLDropDown
             app.DataAnalysisLDropDown = uidropdown(app.AnalysisTab);
             app.DataAnalysisLDropDown.ValueChangedFcn = createCallbackFcn(app, @DataAnalysisLDropDownValueChanged, true);
-            app.DataAnalysisLDropDown.Position = [95 662 109 22];
+            app.DataAnalysisLDropDown.Position = [95 661 109 22];
 
             % Create normalizeSwitchLabel
             app.normalizeSwitchLabel = uilabel(app.AnalysisTab);
             app.normalizeSwitchLabel.HorizontalAlignment = 'center';
             app.normalizeSwitchLabel.FontColor = [0.149 0.149 0.149];
-            app.normalizeSwitchLabel.Position = [36 550 57 22];
+            app.normalizeSwitchLabel.Position = [36 549 57 22];
             app.normalizeSwitchLabel.Text = 'normalize';
 
             % Create normalizeLSwitch
             app.normalizeLSwitch = uiswitch(app.AnalysisTab, 'slider');
             app.normalizeLSwitch.ValueChangedFcn = createCallbackFcn(app, @normalizeLSwitchValueChanged, true);
             app.normalizeLSwitch.FontColor = [0.149 0.149 0.149];
-            app.normalizeLSwitch.Position = [124 551 45 20];
+            app.normalizeLSwitch.Position = [124 550 45 20];
 
             % Create detrendSwitchLabel
             app.detrendSwitchLabel = uilabel(app.AnalysisTab);
             app.detrendSwitchLabel.HorizontalAlignment = 'center';
-            app.detrendSwitchLabel.Position = [42 514 46 22];
+            app.detrendSwitchLabel.Position = [42 513 46 22];
             app.detrendSwitchLabel.Text = 'detrend';
 
             % Create detrendLSwitch
             app.detrendLSwitch = uiswitch(app.AnalysisTab, 'slider');
             app.detrendLSwitch.ValueChangedFcn = createCallbackFcn(app, @detrendLSwitchValueChanged, true);
-            app.detrendLSwitch.Position = [124 515 45 20];
+            app.detrendLSwitch.Position = [124 514 45 20];
 
             % Create normalizeSwitch_2Label
             app.normalizeSwitch_2Label = uilabel(app.AnalysisTab);
             app.normalizeSwitch_2Label.HorizontalAlignment = 'center';
-            app.normalizeSwitch_2Label.Position = [341 551 57 22];
+            app.normalizeSwitch_2Label.Position = [341 550 57 22];
             app.normalizeSwitch_2Label.Text = 'normalize';
 
             % Create normalizeRSwitch
             app.normalizeRSwitch = uiswitch(app.AnalysisTab, 'slider');
             app.normalizeRSwitch.ValueChangedFcn = createCallbackFcn(app, @normalizeRSwitchValueChanged, true);
-            app.normalizeRSwitch.Position = [429 552 45 20];
+            app.normalizeRSwitch.Position = [429 551 45 20];
 
             % Create detrendSwitch_2Label
             app.detrendSwitch_2Label = uilabel(app.AnalysisTab);
             app.detrendSwitch_2Label.HorizontalAlignment = 'center';
-            app.detrendSwitch_2Label.Position = [346 515 46 22];
+            app.detrendSwitch_2Label.Position = [346 514 46 22];
             app.detrendSwitch_2Label.Text = 'detrend';
 
             % Create detrendRSwitch
             app.detrendRSwitch = uiswitch(app.AnalysisTab, 'slider');
             app.detrendRSwitch.ValueChangedFcn = createCallbackFcn(app, @detrendRSwitchValueChanged, true);
-            app.detrendRSwitch.Position = [428 516 45 20];
+            app.detrendRSwitch.Position = [428 515 45 20];
 
             % Create ylimmatchSwitchLabel
             app.ylimmatchSwitchLabel = uilabel(app.AnalysisTab);
             app.ylimmatchSwitchLabel.HorizontalAlignment = 'center';
-            app.ylimmatchSwitchLabel.Position = [251 478 62 22];
+            app.ylimmatchSwitchLabel.Position = [251 477 62 22];
             app.ylimmatchSwitchLabel.Text = 'ylim match';
 
             % Create ylimmatchSwitch
             app.ylimmatchSwitch = uiswitch(app.AnalysisTab, 'slider');
             app.ylimmatchSwitch.Orientation = 'vertical';
             app.ylimmatchSwitch.ValueChangedFcn = createCallbackFcn(app, @ylimmatchSwitchValueChanged, true);
-            app.ylimmatchSwitch.Position = [272 529 20 45];
+            app.ylimmatchSwitch.Position = [272 528 20 45];
 
             % Create ShortcutTab
             app.ShortcutTab = uitab(app.TabGroup);
@@ -1201,25 +1204,25 @@ classdef logAnalysis < matlab.apps.AppBase
             app.windowSlider = uislider(app.ShortcutTab);
             app.windowSlider.Limits = [1 50];
             app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
-            app.windowSlider.Position = [211 367 150 3];
+            app.windowSlider.Position = [211 366 150 3];
             app.windowSlider.Value = 1;
 
             % Create windowSliderLabel
             app.windowSliderLabel = uilabel(app.ShortcutTab);
             app.windowSliderLabel.HorizontalAlignment = 'right';
-            app.windowSliderLabel.Position = [144 358 45 22];
+            app.windowSliderLabel.Position = [144 357 45 22];
             app.windowSliderLabel.Text = 'window';
 
             % Create plotSwitchLabel
             app.plotSwitchLabel = uilabel(app.ShortcutTab);
             app.plotSwitchLabel.HorizontalAlignment = 'center';
-            app.plotSwitchLabel.Position = [270 473 25 22];
+            app.plotSwitchLabel.Position = [270 472 25 22];
             app.plotSwitchLabel.Text = 'plot';
 
             % Create plotSwitch
             app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
             app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
-            app.plotSwitch.Position = [259 510 45 20];
+            app.plotSwitch.Position = [259 509 45 20];
 
             % Create consoleTab
             app.consoleTab = uitab(app.TabGroup);
@@ -1228,7 +1231,7 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create TextArea
             app.TextArea = uitextarea(app.consoleTab);
             app.TextArea.FontSize = 9;
-            app.TextArea.Position = [0 2 589 689];
+            app.TextArea.Position = [0 1 589 689];
 
             % Create SettingTab
             app.SettingTab = uitab(app.TabGroup);
@@ -1237,80 +1240,80 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create velocitymmsLabel
             app.velocitymmsLabel = uilabel(app.SettingTab);
             app.velocitymmsLabel.HorizontalAlignment = 'right';
-            app.velocitymmsLabel.Position = [62 603 99 22];
+            app.velocitymmsLabel.Position = [62 602 99 22];
             app.velocitymmsLabel.Text = 'velocity [mm/s] = ';
 
             % Create velocityEditField
             app.velocityEditField = uieditfield(app.SettingTab, 'text');
-            app.velocityEditField.Position = [176 603 326 22];
+            app.velocityEditField.Position = [176 602 326 22];
             app.velocityEditField.Value = 'encCurrentN / 60.074 * 1000';
 
             % Create angularVelocitydegsLabel
             app.angularVelocitydegsLabel = uilabel(app.SettingTab);
             app.angularVelocitydegsLabel.HorizontalAlignment = 'right';
-            app.angularVelocitydegsLabel.Position = [21 573 140 22];
+            app.angularVelocitydegsLabel.Position = [21 572 140 22];
             app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
 
             % Create angularVelocityEditField
             app.angularVelocityEditField = uieditfield(app.SettingTab, 'text');
-            app.angularVelocityEditField.Position = [176 573 326 22];
+            app.angularVelocityEditField.Position = [176 572 326 22];
             app.angularVelocityEditField.Value = 'gyroVal_Z / 10000 * -1';
 
             % Create velocitymmsLabel_2
             app.velocitymmsLabel_2 = uilabel(app.SettingTab);
             app.velocitymmsLabel_2.HorizontalAlignment = 'right';
-            app.velocitymmsLabel_2.Position = [62 632 99 22];
+            app.velocitymmsLabel_2.Position = [62 631 99 22];
             app.velocitymmsLabel_2.Text = 'time [s] = ';
 
             % Create timeEditField
             app.timeEditField = uieditfield(app.SettingTab, 'text');
-            app.timeEditField.Position = [176 632 326 22];
+            app.timeEditField.Position = [176 631 326 22];
             app.timeEditField.Value = 'cntlog / 1000';
 
             % Create TranslateequationsLabel
             app.TranslateequationsLabel = uilabel(app.SettingTab);
             app.TranslateequationsLabel.HorizontalAlignment = 'center';
             app.TranslateequationsLabel.FontSize = 18;
-            app.TranslateequationsLabel.Position = [17 662 162 23];
+            app.TranslateequationsLabel.Position = [17 661 162 23];
             app.TranslateequationsLabel.Text = 'Translate equations';
 
             % Create radsCheckBox
             app.radsCheckBox = uicheckbox(app.SettingTab);
             app.radsCheckBox.ValueChangedFcn = createCallbackFcn(app, @radsCheckBoxValueChanged, true);
             app.radsCheckBox.Text = '[rad/s]';
-            app.radsCheckBox.Position = [521 573 55 22];
+            app.radsCheckBox.Position = [521 572 55 22];
             app.radsCheckBox.Value = true;
 
             % Create SwitchLabel
             app.SwitchLabel = uilabel(app.SettingTab);
             app.SwitchLabel.HorizontalAlignment = 'center';
-            app.SwitchLabel.Position = [17 485 347 22];
+            app.SwitchLabel.Position = [17 484 347 22];
             app.SwitchLabel.Text = {'Click on the variable graph to display the position on the course'; ''};
 
             % Create graphPositionBotton
             app.graphPositionBotton = uiswitch(app.SettingTab, 'slider');
             app.graphPositionBotton.ValueChangedFcn = createCallbackFcn(app, @graphPositionBottonValueChanged, true);
-            app.graphPositionBotton.Position = [494 486 45 20];
+            app.graphPositionBotton.Position = [494 485 45 20];
 
             % Create Spinner
             app.Spinner = uispinner(app.SettingTab);
             app.Spinner.Step = 0.001;
             app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
             app.Spinner.Limits = [0.9 1.4];
-            app.Spinner.Position = [67 274 85 22];
+            app.Spinner.Position = [67 273 85 22];
             app.Spinner.Value = 1;
 
             % Create CourseajustgyroKnobLabel
             app.CourseajustgyroKnobLabel = uilabel(app.SettingTab);
             app.CourseajustgyroKnobLabel.HorizontalAlignment = 'center';
-            app.CourseajustgyroKnobLabel.Position = [51 405 107 22];
+            app.CourseajustgyroKnobLabel.Position = [51 404 107 22];
             app.CourseajustgyroKnobLabel.Text = 'Course ajust (gyro)';
 
             % Create CourseajustgyroKnob
             app.CourseajustgyroKnob = uiknob(app.SettingTab, 'continuous');
             app.CourseajustgyroKnob.Limits = [0.9 1.4];
             app.CourseajustgyroKnob.ValueChangingFcn = createCallbackFcn(app, @CourseajustgyroKnobValueChanging, true);
-            app.CourseajustgyroKnob.Position = [75 324 60 60];
+            app.CourseajustgyroKnob.Position = [75 323 60 60];
             app.CourseajustgyroKnob.Value = 1;
 
             % Create SwitchDirection
@@ -1318,12 +1321,12 @@ classdef logAnalysis < matlab.apps.AppBase
             app.SwitchDirection.Items = {'CCW', 'CW'};
             app.SwitchDirection.Orientation = 'horizontal';
             app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
-            app.SwitchDirection.Position = [243 324 45 20];
+            app.SwitchDirection.Position = [243 323 45 20];
             app.SwitchDirection.Value = 'CW';
 
             % Create Label
             app.Label = uilabel(app.SettingTab);
-            app.Label.Position = [213 357 94 22];
+            app.Label.Position = [213 356 94 22];
             app.Label.Text = 'Course Direction';
 
             % Create Button_Rotate
