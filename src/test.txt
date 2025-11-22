@@ -3,6 +3,8 @@ classdef logAnalysis < matlab.apps.AppBase
     % Properties that correspond to app components
     properties (Access = public)
         UIFigure                  matlab.ui.Figure
+        Button_Expand             matlab.ui.control.Button
+        Button_Rotate             matlab.ui.control.Button
         TabGroup                  matlab.ui.container.TabGroup
         GraphsTab                 matlab.ui.container.Tab
         Data3DropDown             matlab.ui.control.DropDown
@@ -39,6 +41,11 @@ classdef logAnalysis < matlab.apps.AppBase
         DataLabel                 matlab.ui.control.Label
         UIAxesAnalysis            matlab.ui.control.UIAxes
         SettingTab                matlab.ui.container.Tab
+        Label                     matlab.ui.control.Label
+        SwitchDirection           matlab.ui.control.ToggleSwitch
+        CourseajustgyroKnob       matlab.ui.control.Knob
+        CourseajustgyroKnobLabel  matlab.ui.control.Label
+        Spinner                   matlab.ui.control.Spinner
         graphPositionBotton       matlab.ui.control.Switch
         SwitchLabel               matlab.ui.control.Label
         radsCheckBox              matlab.ui.control.CheckBox
@@ -60,10 +67,6 @@ classdef logAnalysis < matlab.apps.AppBase
         LogDropDownLabel          matlab.ui.control.Label
         TimesSlider               matlab.ui.control.Slider
         TimesLabel                matlab.ui.control.Label
-        SwitchDirection           matlab.ui.control.ToggleSwitch
-        kgyroKnob                 matlab.ui.control.Knob
-        kgyroKnobLabel            matlab.ui.control.Label
-        Spinner                   matlab.ui.control.Spinner
         ReloadButton              matlab.ui.control.Button
         FolderpathLabel           matlab.ui.control.Label
         FolderButton              matlab.ui.control.Button
@@ -80,7 +83,9 @@ classdef logAnalysis < matlab.apps.AppBase
         shortCutCourse      % ショートカットの走行軌跡座標配列
         marker              % 現在地のプロット
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
-        courseColorbar  % コース描画用カラーバーハンドル
+        courseColorbar      % コース描画用カラーバーハンドル
+        expand              % コースプロット最大化フラグ 1:最大
+        rotate = 0          % コースプロットの回転フラグ 1:90° CCW回転
 
         time            % 時間配列
         velocity        % 速度配列
@@ -103,8 +108,8 @@ classdef logAnalysis < matlab.apps.AppBase
 			try
 				% ログファイル読み込みと最低限の行数チェックを例外処理で保護
 				app.log = readtable(append(app.rootDir,'\\',filename,".csv"));		  % ログファイル読み込み
-				if height(app.log) < 2
-					error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
+                if height(app.log) < 2
+                    error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
 
                 % テキストフィールドから換算式を取得
@@ -158,23 +163,23 @@ classdef logAnalysis < matlab.apps.AppBase
 				angularVelocityeq = split(app.angularVelocityEditField.Value);
 				app.angularVelocity = app.log.(angularVelocityeq{1});
 				i = 2;
-				while i <= numel(angularVelocityeq)
-					if i + 1 > numel(angularVelocityeq)
-						error("logAnalysis:InvalidEquation","角速度換算式の演算子と値の組み合わせが不足しています。");
-					end
-					angularVelocityOperand = str2double(angularVelocityeq{i + 1});
-					if isnan(angularVelocityOperand)
-						error("logAnalysis:InvalidEquation","角速度換算式に数値以外が指定されています: %s", angularVelocityeq{i + 1});
-					end
-					% 角速度換算式の演算子を判定して計算
-					if angularVelocityeq(i) == "*"
-						app.angularVelocity = app.angularVelocity * angularVelocityOperand;
-					elseif angularVelocityeq(i) == "/"
-						app.angularVelocity = app.angularVelocity / angularVelocityOperand;
-					else
-						error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
-					end
-					i = i + 2;
+                while i <= numel(angularVelocityeq)
+                    if i + 1 > numel(angularVelocityeq)
+                        error("logAnalysis:InvalidEquation","角速度換算式の演算子と値の組み合わせが不足しています。");
+                    end
+                    angularVelocityOperand = str2double(angularVelocityeq{i + 1});
+                    if isnan(angularVelocityOperand)
+                        error("logAnalysis:InvalidEquation","角速度換算式に数値以外が指定されています: %s", angularVelocityeq{i + 1});
+                    end
+                    % 角速度換算式の演算子を判定して計算
+                    if angularVelocityeq(i) == "*"
+                        app.angularVelocity = app.angularVelocity * angularVelocityOperand;
+                    elseif angularVelocityeq(i) == "/"
+                        app.angularVelocity = app.angularVelocity / angularVelocityOperand;
+                    else
+                        error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
+                    end
+                    i = i + 2;
                 end
 
 			catch ME
@@ -214,7 +219,12 @@ classdef logAnalysis < matlab.apps.AppBase
 
 				app.LogDropDown.Items = {};                         % ドロップダウンメニューを初期化
 
-				app.LogDropDown.Items = append(fileList.name,"    ",string(round(fileList.bytes/1000,0)),"KB" );          % ドロップダウンメニューに追加
+                fileSize = num2str(round(fileList.bytes/1000,0),3);    % ファイルサイズ
+                fileSize = string(fileSize);
+                fileDate = datetime(fileList.datenum,"ConvertFrom","datenum");  % ファイル更新日
+                fileDate = string(fileDate,"yyyy/MM/dd");
+
+				app.LogDropDown.Items = append(fileList.name,"    ",fileSize,"KB","    ",fileDate);          % ドロップダウンメニューに追加
 	
 				app.Lamp.Color = "green";   % ステータスランプ緑
 				app.TextArea.Value = "";    % ステータスクリア
@@ -255,7 +265,9 @@ classdef logAnalysis < matlab.apps.AppBase
             try
                 % 座標算出
                 degxy = cumtrapz(app.time, app.angularVelocity .* app.kgyro);  % 角度行列[deg/s] 角速度を積算
-                % degxy = deg2rad(degxy);
+                % コースプロット回転ボタンが押されたとき
+                degxy = degxy + app.rotate; % 全体を90°加算
+
                 if app.radsCheckBox.Value == true
                     x = cumtrapz(app.time, ( app.velocity .* sin(degxy) ));
                     y = cumtrapz(app.time, ( app.velocity .* cos(degxy) ));
@@ -379,7 +391,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % 変数初期化
             app.kgyro = 1;
-            app.kgyroKnob.Value = 1;
+            app.CourseajustgyroKnob.Value = 1;
             app.Spinner.Value = 1;
 
             % コース座標計算
@@ -488,7 +500,7 @@ classdef logAnalysis < matlab.apps.AppBase
             end
         end
         
-        function getTimeIndex(app,src,event)           
+        function getTimeIndex(app,~,event)           
             % グラフからデータを取り出す
             X = event.Source.XData;
             Y = event.Source.YData;
@@ -513,9 +525,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % クリック点に近い配列値のインデックス
             if class(event.Source) == "matlab.graphics.chart.primitive.Scatter"     % コース描画
-                [dp,Ip] = min((X-Xp).^2+(Y-Yp).^2);
+                [~,Ip] = min((X-Xp).^2+(Y-Yp).^2);
             elseif class(event.Source) == "matlab.graphics.chart.primitive.Line"    % 変数グラフ
-                [dp,Ip] = min((X-Xp).^2);
+                [~,Ip] = min((X-Xp).^2);
             end
             timeIndex = app.course.Time(Ip);        % クリック点での時間を取得
 
@@ -772,7 +784,7 @@ classdef logAnalysis < matlab.apps.AppBase
         % Value changing function: Spinner
         function SpinnerValueChanging(app, event)
             changingValue = event.Value;
-            app.kgyroKnob.Value = changingValue;
+            app.CourseajustgyroKnob.Value = changingValue;
             
             app.kgyro = changingValue; % 角度補正係数にノブの値を代入
             calcCourseplot(app);    % コース座標計算
@@ -780,8 +792,8 @@ classdef logAnalysis < matlab.apps.AppBase
             plotCourse(app)
         end
 
-        % Value changing function: kgyroKnob
-        function kgyroKnobValueChanging(app, event)
+        % Value changing function: CourseajustgyroKnob
+        function CourseajustgyroKnobValueChanging(app, event)
             changingValue = event.Value;
             app.Spinner.Value = changingValue;
             
@@ -839,6 +851,36 @@ classdef logAnalysis < matlab.apps.AppBase
         function plotSwitchValueChanged(app, event)
             plotCourse(app);
         end
+
+        % Button pushed function: Button_Rotate
+        function Button_RotatePushed(app, event)
+            app.rotate = app.rotate - 90;
+            calcCourseplot(app);
+            plotCourse(app);
+        end
+
+        % Button pushed function: Button_Expand
+        function Button_ExpandPushed(app, event)
+            if app.expand == 1
+                app.expand = 0;
+
+                app.TabGroup.Visible = "on";
+                app.CourseajustgyroKnob.Visible = "on";
+                app.Spinner.Visible = "on";
+                app.SwitchDirection.Visible = "on";
+
+                app.UIAxisCourse.Position = [1 45 661 608];
+            else
+                app.expand = 1;
+
+                app.TabGroup.Visible = "off";
+                app.CourseajustgyroKnob.Visible = "off";
+                app.Spinner.Visible = "off";
+                app.SwitchDirection.Visible = "off";
+
+                app.UIAxisCourse.Position = [1 45 1162 608];
+            end
+        end
     end
 
     % Component initialization
@@ -846,6 +888,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Create UIFigure and components
         function createComponents(app)
+
+            % Get the file path for locating images
+            pathToMLAPP = fileparts(mfilename('fullpath'));
 
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
@@ -864,7 +909,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIAxisCourse.XGrid = 'on';
             app.UIAxisCourse.YGrid = 'on';
             app.UIAxisCourse.ColorOrder = [0 0.447058823529412 0.741176470588235;0.850980392156863 0.325490196078431 0.0980392156862745;0.929411764705882 0.694117647058824 0.125490196078431;0.494117647058824 0.184313725490196 0.556862745098039;0.466666666666667 0.674509803921569 0.188235294117647];
-            app.UIAxisCourse.Position = [1 45 551 608];
+            app.UIAxisCourse.Position = [1 45 661 608];
 
             % Create Lamp
             app.Lamp = uilamp(app.UIFigure);
@@ -884,60 +929,31 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create ReloadButton
             app.ReloadButton = uibutton(app.UIFigure, 'push');
             app.ReloadButton.ButtonPushedFcn = createCallbackFcn(app, @ReloadButtonPushed, true);
-            app.ReloadButton.Position = [417 681 100 22];
+            app.ReloadButton.Position = [562 681 100 22];
             app.ReloadButton.Text = 'Reload';
-
-            % Create Spinner
-            app.Spinner = uispinner(app.UIFigure);
-            app.Spinner.Step = 0.001;
-            app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
-            app.Spinner.Limits = [0.9 1.4];
-            app.Spinner.Position = [576 484 85 22];
-            app.Spinner.Value = 1;
-
-            % Create kgyroKnobLabel
-            app.kgyroKnobLabel = uilabel(app.UIFigure);
-            app.kgyroKnobLabel.HorizontalAlignment = 'center';
-            app.kgyroKnobLabel.Position = [596 615 35 22];
-            app.kgyroKnobLabel.Text = 'kgyro';
-
-            % Create kgyroKnob
-            app.kgyroKnob = uiknob(app.UIFigure, 'continuous');
-            app.kgyroKnob.Limits = [0.9 1.4];
-            app.kgyroKnob.ValueChangingFcn = createCallbackFcn(app, @kgyroKnobValueChanging, true);
-            app.kgyroKnob.Position = [584 534 60 60];
-            app.kgyroKnob.Value = 1;
-
-            % Create SwitchDirection
-            app.SwitchDirection = uiswitch(app.UIFigure, 'toggle');
-            app.SwitchDirection.Items = {'CCW', 'CW'};
-            app.SwitchDirection.Orientation = 'horizontal';
-            app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
-            app.SwitchDirection.Position = [600 442 45 20];
-            app.SwitchDirection.Value = 'CW';
 
             % Create TimesLabel
             app.TimesLabel = uilabel(app.UIFigure);
             app.TimesLabel.HorizontalAlignment = 'right';
-            app.TimesLabel.Position = [478 7 48 22];
+            app.TimesLabel.Position = [598 7 48 22];
             app.TimesLabel.Text = 'Time [s]';
 
             % Create TimesSlider
             app.TimesSlider = uislider(app.UIFigure);
             app.TimesSlider.ValueChangingFcn = createCallbackFcn(app, @TimesSliderValueChanging, true);
-            app.TimesSlider.Position = [63 37 394 3];
+            app.TimesSlider.Position = [63 37 514 3];
 
             % Create LogDropDownLabel
             app.LogDropDownLabel = uilabel(app.UIFigure);
             app.LogDropDownLabel.HorizontalAlignment = 'right';
-            app.LogDropDownLabel.Position = [241 681 26 22];
+            app.LogDropDownLabel.Position = [252 681 26 22];
             app.LogDropDownLabel.Text = 'Log';
 
             % Create LogDropDown
             app.LogDropDown = uidropdown(app.UIFigure);
             app.LogDropDown.Items = {'option'};
             app.LogDropDown.ValueChangedFcn = createCallbackFcn(app, @LogDropDownValueChanged, true);
-            app.LogDropDown.Position = [282 681 133 22];
+            app.LogDropDown.Position = [282 681 188 22];
             app.LogDropDown.Value = 'option';
 
             % Create TabGroup
@@ -1202,6 +1218,40 @@ classdef logAnalysis < matlab.apps.AppBase
             app.graphPositionBotton.ValueChangedFcn = createCallbackFcn(app, @graphPositionBottonValueChanged, true);
             app.graphPositionBotton.Position = [494 486 45 20];
 
+            % Create Spinner
+            app.Spinner = uispinner(app.SettingTab);
+            app.Spinner.Step = 0.001;
+            app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
+            app.Spinner.Limits = [0.9 1.4];
+            app.Spinner.Position = [67 274 85 22];
+            app.Spinner.Value = 1;
+
+            % Create CourseajustgyroKnobLabel
+            app.CourseajustgyroKnobLabel = uilabel(app.SettingTab);
+            app.CourseajustgyroKnobLabel.HorizontalAlignment = 'center';
+            app.CourseajustgyroKnobLabel.Position = [51 405 107 22];
+            app.CourseajustgyroKnobLabel.Text = 'Course ajust (gyro)';
+
+            % Create CourseajustgyroKnob
+            app.CourseajustgyroKnob = uiknob(app.SettingTab, 'continuous');
+            app.CourseajustgyroKnob.Limits = [0.9 1.4];
+            app.CourseajustgyroKnob.ValueChangingFcn = createCallbackFcn(app, @CourseajustgyroKnobValueChanging, true);
+            app.CourseajustgyroKnob.Position = [75 324 60 60];
+            app.CourseajustgyroKnob.Value = 1;
+
+            % Create SwitchDirection
+            app.SwitchDirection = uiswitch(app.SettingTab, 'toggle');
+            app.SwitchDirection.Items = {'CCW', 'CW'};
+            app.SwitchDirection.Orientation = 'horizontal';
+            app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
+            app.SwitchDirection.Position = [243 324 45 20];
+            app.SwitchDirection.Value = 'CW';
+
+            % Create Label
+            app.Label = uilabel(app.SettingTab);
+            app.Label.Position = [213 357 94 22];
+            app.Label.Text = 'Course Direction';
+
             % Create ShortcutTab
             app.ShortcutTab = uitab(app.TabGroup);
             app.ShortcutTab.Title = 'Short cut';
@@ -1238,6 +1288,22 @@ classdef logAnalysis < matlab.apps.AppBase
             app.TextArea = uitextarea(app.consoleTab);
             app.TextArea.FontSize = 9;
             app.TextArea.Position = [0 2 589 689];
+
+            % Create Button_Rotate
+            app.Button_Rotate = uibutton(app.UIFigure, 'push');
+            app.Button_Rotate.ButtonPushedFcn = createCallbackFcn(app, @Button_RotatePushed, true);
+            app.Button_Rotate.Icon = fullfile(pathToMLAPP, 'rotate.jpg');
+            app.Button_Rotate.BackgroundColor = [1 1 1];
+            app.Button_Rotate.Position = [526 681 22 22];
+            app.Button_Rotate.Text = '';
+
+            % Create Button_Expand
+            app.Button_Expand = uibutton(app.UIFigure, 'push');
+            app.Button_Expand.ButtonPushedFcn = createCallbackFcn(app, @Button_ExpandPushed, true);
+            app.Button_Expand.Icon = fullfile(pathToMLAPP, 'expand.jpg');
+            app.Button_Expand.BackgroundColor = [1 1 1];
+            app.Button_Expand.Position = [479 681 22 22];
+            app.Button_Expand.Text = '';
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
