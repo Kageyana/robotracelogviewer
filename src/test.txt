@@ -54,6 +54,8 @@ classdef logAnalysis < matlab.apps.AppBase
         plotSwitchLabel           matlab.ui.control.Label
         windowSliderLabel         matlab.ui.control.Label
         windowSlider              matlab.ui.control.Slider
+        consoleTab                matlab.ui.container.Tab
+        TextArea                  matlab.ui.control.TextArea
         LogDropDown               matlab.ui.control.DropDown
         LogDropDownLabel          matlab.ui.control.Label
         TimesSlider               matlab.ui.control.Slider
@@ -63,7 +65,6 @@ classdef logAnalysis < matlab.apps.AppBase
         kgyroKnobLabel            matlab.ui.control.Label
         Spinner                   matlab.ui.control.Spinner
         ReloadButton              matlab.ui.control.Button
-        TextArea                  matlab.ui.control.TextArea
         FolderpathLabel           matlab.ui.control.Label
         FolderButton              matlab.ui.control.Button
         Lamp                      matlab.ui.control.Lamp
@@ -310,6 +311,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 scatter(app.UIAxisCourse,app.course,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
                 app.UIAxisCourse.XLim = [min(app.course.x)-100 max(app.course.x)+100];
                 app.UIAxisCourse.YLim = [min(app.course.y)-100 max(app.course.y)+100];
+                daspect(app.UIAxisCourse,[1 1 1]); % x,y軸の縦横比を1:1にする
 
                 % コース軸の設定
                 % カラーバー表示
@@ -625,8 +627,6 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIAxisCourse.XTick = -10000:100:10000;
             app.UIAxisCourse.YTick = -10000:100:10000;
 
-
-
             % コース描画、変数グラフ表示
             % コース座標計算
             calcCourseplot(app);    % コース座標計算
@@ -860,10 +860,11 @@ classdef logAnalysis < matlab.apps.AppBase
             zlabel(app.UIAxisCourse, 'Z[mm]')
             app.UIAxisCourse.XLim = [0 1];
             app.UIAxisCourse.YLim = [0 1];
+            app.UIAxisCourse.TitleHorizontalAlignment = 'right';
             app.UIAxisCourse.XGrid = 'on';
             app.UIAxisCourse.YGrid = 'on';
             app.UIAxisCourse.ColorOrder = [0 0.447058823529412 0.741176470588235;0.850980392156863 0.325490196078431 0.0980392156862745;0.929411764705882 0.694117647058824 0.125490196078431;0.494117647058824 0.184313725490196 0.556862745098039;0.466666666666667 0.674509803921569 0.188235294117647];
-            app.UIAxisCourse.Position = [1 81 497 581];
+            app.UIAxisCourse.Position = [1 45 551 608];
 
             % Create Lamp
             app.Lamp = uilamp(app.UIFigure);
@@ -880,11 +881,6 @@ classdef logAnalysis < matlab.apps.AppBase
             app.FolderpathLabel.Position = [45 681 66 22];
             app.FolderpathLabel.Text = 'Folder path';
 
-            % Create TextArea
-            app.TextArea = uitextarea(app.UIFigure);
-            app.TextArea.FontSize = 9;
-            app.TextArea.Position = [502 10 164 199];
-
             % Create ReloadButton
             app.ReloadButton = uibutton(app.UIFigure, 'push');
             app.ReloadButton.ButtonPushedFcn = createCallbackFcn(app, @ReloadButtonPushed, true);
@@ -896,20 +892,20 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Spinner.Step = 0.001;
             app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
             app.Spinner.Limits = [0.9 1.4];
-            app.Spinner.Position = [546 484 85 22];
+            app.Spinner.Position = [576 484 85 22];
             app.Spinner.Value = 1;
 
             % Create kgyroKnobLabel
             app.kgyroKnobLabel = uilabel(app.UIFigure);
             app.kgyroKnobLabel.HorizontalAlignment = 'center';
-            app.kgyroKnobLabel.Position = [566 615 35 22];
+            app.kgyroKnobLabel.Position = [596 615 35 22];
             app.kgyroKnobLabel.Text = 'kgyro';
 
             % Create kgyroKnob
             app.kgyroKnob = uiknob(app.UIFigure, 'continuous');
             app.kgyroKnob.Limits = [0.9 1.4];
             app.kgyroKnob.ValueChangingFcn = createCallbackFcn(app, @kgyroKnobValueChanging, true);
-            app.kgyroKnob.Position = [554 534 60 60];
+            app.kgyroKnob.Position = [584 534 60 60];
             app.kgyroKnob.Value = 1;
 
             % Create SwitchDirection
@@ -917,19 +913,19 @@ classdef logAnalysis < matlab.apps.AppBase
             app.SwitchDirection.Items = {'CCW', 'CW'};
             app.SwitchDirection.Orientation = 'horizontal';
             app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
-            app.SwitchDirection.Position = [561 441 45 20];
+            app.SwitchDirection.Position = [600 442 45 20];
             app.SwitchDirection.Value = 'CW';
 
             % Create TimesLabel
             app.TimesLabel = uilabel(app.UIFigure);
             app.TimesLabel.HorizontalAlignment = 'right';
-            app.TimesLabel.Position = [436 24 48 22];
+            app.TimesLabel.Position = [478 7 48 22];
             app.TimesLabel.Text = 'Time [s]';
 
             % Create TimesSlider
             app.TimesSlider = uislider(app.UIFigure);
             app.TimesSlider.ValueChangingFcn = createCallbackFcn(app, @TimesSliderValueChanging, true);
-            app.TimesSlider.Position = [21 54 394 3];
+            app.TimesSlider.Position = [63 37 394 3];
 
             % Create LogDropDownLabel
             app.LogDropDownLabel = uilabel(app.UIFigure);
@@ -1233,6 +1229,15 @@ classdef logAnalysis < matlab.apps.AppBase
             app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
             app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
             app.plotSwitch.Position = [259 510 45 20];
+
+            % Create consoleTab
+            app.consoleTab = uitab(app.TabGroup);
+            app.consoleTab.Title = 'console';
+
+            % Create TextArea
+            app.TextArea = uitextarea(app.consoleTab);
+            app.TextArea.FontSize = 9;
+            app.TextArea.Position = [0 2 589 689];
 
             % Show the figure after all components are created
             app.UIFigure.Visible = 'on';
