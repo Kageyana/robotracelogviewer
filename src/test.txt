@@ -95,56 +95,73 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % ログデータを取得する
         function getLogdata(app)
-            filename = strsplit(app.LogDropDown.Value);
-            filename = filename{1};
-            app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
-%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
-%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
-%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
+			filename = strsplit(app.LogDropDown.Value);
+			filename = filename{1};
+			app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
+			%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
+			%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
+			%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
 
-            % テキストフィールドから換算式を取得
-            % 時間行列[s]
-            timeeq = split(app.timeEditField.Value);    
-            for i = 1:size(timeeq,1)
-                if i == 1 % 1つ目の要素
-                    app.time = app.log.(timeeq{1});
-                elseif timeeq(i) == "*"
-%                     app.time = app.time * str2double(timeeq{i+1});
-                elseif timeeq(i) == "/"
-                    app.time = app.time / str2double(timeeq{i+1});
-                end
-            end
+			% テキストフィールドから換算式を取得
+			% 時間行列[s]
+			timeeq = split(app.timeEditField.Value);
+			try
+				app.time = app.log.(timeeq{1});
+				i = 2;
+				while i <= numel(timeeq)
+					if i + 1 > numel(timeeq)
+						error("logAnalysis:InvalidEquation","時間換算式の演算子と値の組み合わせが不足しています。");
+					end
+					operand = str2double(timeeq{i + 1});
+					if isnan(operand)
+						error("logAnalysis:InvalidEquation","時間換算式に数値以外が指定されています: %s", timeeq{i + 1});
+					end
+					% 演算子を判定して掛け算・割り算を実行
+					if timeeq(i) == "*"
+						app.time = app.time * operand;
+					elseif timeeq(i) == "/"
+						app.time = app.time / operand;
+					else
+						error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
+					end
+					i = i + 2;
+				end
+			catch ME
+				app.Lamp.Color = "red";
+				setTexttarea(app, {ME.identifier, ME.message});
+				return;
+			end
 
-            % 速度行列[mm/s]
-            velocityeq = split(app.velocityEditField.Value);
-            for i = 1:size(velocityeq,1)
-                if i == 1
-                    app.velocity = app.log.(velocityeq{1});
-                elseif velocityeq(i) == "*"
-                    app.velocity = app.velocity * str2double(velocityeq{i+1});
-                elseif velocityeq(i) == "/"
-                    app.velocity = app.velocity / str2double(velocityeq{i+1});
-                end
-            end
+			% 速度行列[mm/s]
+			velocityeq = split(app.velocityEditField.Value);
+			for i = 1:size(velocityeq,1)
+				if i == 1
+					app.velocity = app.log.(velocityeq{1});
+				elseif velocityeq(i) == "*"
+					app.velocity = app.velocity * str2double(velocityeq{i+1});
+				elseif velocityeq(i) == "/"
+					app.velocity = app.velocity / str2double(velocityeq{i+1});
+				end
+			end
 
-            % 角度速度配列[deg/s] 右旋回時にプラス
-            angularVelocityeq = split(app.angularVelocityEditField.Value);
-            for i = 1:size(angularVelocityeq,1)
-                if i == 1
-                    app.angularVelocity = app.log.(angularVelocityeq{1});
-                elseif angularVelocityeq(i) == "*"
-                    app.angularVelocity = app.angularVelocity * str2double(angularVelocityeq{i+1});
-                elseif angularVelocityeq(i) == "/"
-                    app.angularVelocity = app.angularVelocity / str2double(angularVelocityeq{i+1});
-                end
-            end
+			% 角度速度配列[deg/s] 右旋回時にプラス
+			angularVelocityeq = split(app.angularVelocityEditField.Value);
+			for i = 1:size(angularVelocityeq,1)
+				if i == 1
+					app.angularVelocity = app.log.(angularVelocityeq{1});
+				elseif angularVelocityeq(i) == "*"
+					app.angularVelocity = app.angularVelocity * str2double(angularVelocityeq{i+1});
+				elseif angularVelocityeq(i) == "/"
+					app.angularVelocity = app.angularVelocity / str2double(angularVelocityeq{i+1});
+				end
+			end
 
-            app.dt = app.time(2,1) - app.time(1,1);
-            
-            setTexttarea(app, {append(app.rootDir,'\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
-        end
+			app.dt = app.time(2,1) - app.time(1,1);
+			
+			setTexttarea(app, {append(app.rootDir,'\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
+		end
 
-        % ログファイル一覧の取得
+		% ログファイル一覧の取得
         function getLogfiles(app)
             try
                 origDir = pwd;              % カレントディレクトリを保存
@@ -1089,7 +1106,7 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create timeEditField
             app.timeEditField = uieditfield(app.SettingTab, 'text');
             app.timeEditField.Position = [176 632 326 22];
-            app.timeEditField.Value = 'cntlog / 1000';
+app.timeEditField.Value = 'cntlog / 1000 * 2';
 
             % Create TranslateequationsLabel
             app.TranslateequationsLabel = uilabel(app.SettingTab);
