@@ -96,53 +96,93 @@ classdef logAnalysis < matlab.apps.AppBase
         % ログデータを取得する
         function getLogdata(app)
             filename = strsplit(app.LogDropDown.Value);
-            filename = filename{1};
-            app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
-%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
-%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
-%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
+			filename = filename{1};
+			app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
+			%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
+			%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
+			%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
 
-            % テキストフィールドから換算式を取得
+			% テキストフィールドから換算式を取得
             % 時間行列[s]
-            timeeq = split(app.timeEditField.Value);    
-            for i = 1:size(timeeq,1)
-                if i == 1 % 1つ目の要素
-                    app.time = app.log.(timeeq{1});
-                elseif timeeq(i) == "*"
-%                     app.time = app.time * str2double(timeeq{i+1});
-                elseif timeeq(i) == "/"
-                    app.time = app.time / str2double(timeeq{i+1});
+            timeeq = split(app.timeEditField.Value);
+            try
+                app.time = app.log.(timeeq{1});
+                i = 2;
+                while i <= numel(timeeq)
+                    if i + 1 > numel(timeeq)
+                        error("logAnalysis:InvalidEquation","時間換算式の演算子と値の組み合わせが不足しています。");
+                    end
+                    operand = str2double(timeeq{i + 1});
+                    if isnan(operand)
+                        error("logAnalysis:InvalidEquation","時間換算式に数値以外が指定されています: %s", timeeq{i + 1});
+                    end
+                    % 演算子を判定して掛け算・割り算を実行
+                    if timeeq(i) == "*"
+                        app.time = app.time * operand;
+                    elseif timeeq(i) == "/"
+                        app.time = app.time / operand;
+                    else
+                        error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
+                    end
+                    i = i + 2;
                 end
+    
+                % 速度行列[mm/s] の換算式を検証しながら計算
+                velocityeq = split(app.velocityEditField.Value);
+                app.velocity = app.log.(velocityeq{1});
+                i = 2;
+                while i <= numel(velocityeq)
+                    if i + 1 > numel(velocityeq)
+                        error("logAnalysis:InvalidEquation","速度換算式の演算子と値の組み合わせが不足しています。");
+                    end
+                    velocityOperand = str2double(velocityeq{i + 1});
+                    if isnan(velocityOperand)
+                        error("logAnalysis:InvalidEquation","速度換算式に数値以外が指定されています: %s", velocityeq{i + 1});
+                    end
+                    % 速度換算式の演算子を判定して計算
+                    if velocityeq(i) == "*"
+                        app.velocity = app.velocity * velocityOperand;
+                    elseif velocityeq(i) == "/"
+                        app.velocity = app.velocity / velocityOperand;
+                    else
+                        error("logAnalysis:InvalidEquation","速度換算式に無効な演算子があります: %s", velocityeq{i});
+                    end
+                    i = i + 2;
+                end
+    
+                % 角度速度配列[deg/s] の換算式を検証しながら計算（右旋回時にプラス）
+                angularVelocityeq = split(app.angularVelocityEditField.Value);
+                app.angularVelocity = app.log.(angularVelocityeq{1});
+                i = 2;
+                while i <= numel(angularVelocityeq)
+                    if i + 1 > numel(angularVelocityeq)
+                        error("logAnalysis:InvalidEquation","角速度換算式の演算子と値の組み合わせが不足しています。");
+                    end
+                    angularVelocityOperand = str2double(angularVelocityeq{i + 1});
+                    if isnan(angularVelocityOperand)
+                        error("logAnalysis:InvalidEquation","角速度換算式に数値以外が指定されています: %s", angularVelocityeq{i + 1});
+                    end
+                    % 角速度換算式の演算子を判定して計算
+                    if angularVelocityeq(i) == "*"
+                        app.angularVelocity = app.angularVelocity * angularVelocityOperand;
+                    elseif angularVelocityeq(i) == "/"
+                        app.angularVelocity = app.angularVelocity / angularVelocityOperand;
+                    else
+                        error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
+                    end
+                    i = i + 2;
+                end
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app, {ME.identifier, ME.message});
+                return;
             end
 
-            % 速度行列[mm/s]
-            velocityeq = split(app.velocityEditField.Value);
-            for i = 1:size(velocityeq,1)
-                if i == 1
-                    app.velocity = app.log.(velocityeq{1});
-                elseif velocityeq(i) == "*"
-                    app.velocity = app.velocity * str2double(velocityeq{i+1});
-                elseif velocityeq(i) == "/"
-                    app.velocity = app.velocity / str2double(velocityeq{i+1});
-                end
-            end
+			app.dt = app.time(2,1) - app.time(1,1);
+			
+			setTexttarea(app, {append(app.rootDir,'\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
+		end
 
-            % 角度速度配列[deg/s] 右旋回時にプラス
-            angularVelocityeq = split(app.angularVelocityEditField.Value);
-            for i = 1:size(angularVelocityeq,1)
-                if i == 1
-                    app.angularVelocity = app.log.(angularVelocityeq{1});
-                elseif angularVelocityeq(i) == "*"
-                    app.angularVelocity = app.angularVelocity * str2double(angularVelocityeq{i+1});
-                elseif angularVelocityeq(i) == "/"
-                    app.angularVelocity = app.angularVelocity / str2double(angularVelocityeq{i+1});
-                end
-            end
-
-            app.dt = app.time(2,1) - app.time(1,1);
-            
-            setTexttarea(app, {append(app.rootDir,'\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
-        end
 
         % ログファイル一覧の取得
         function getLogfiles(app)
@@ -203,13 +243,14 @@ classdef logAnalysis < matlab.apps.AppBase
         function calcCourseplot(app)
             try
                 % 座標算出
-                degxy = cumtrapz(app.dt, app.angularVelocity .* app.kgyro);  % 角度行列[deg/s] 角速度を積算
+                degxy = cumtrapz(app.time, app.angularVelocity .* app.kgyro);  % 角度行列[deg/s] 角速度を積算
+                % degxy = deg2rad(degxy);
                 if app.radsCheckBox.Value == true
-                    x = cumtrapz(app.dt, ( app.velocity .* sin(degxy) ));
-                    y = cumtrapz(app.dt, ( app.velocity .* cos(degxy) ));
+                    x = cumtrapz(app.time, ( app.velocity .* sin(degxy) ));
+                    y = cumtrapz(app.time, ( app.velocity .* cos(degxy) ));
                 else
-                    x = cumtrapz(app.dt, ( app.velocity .* sind(degxy) ));
-                    y = cumtrapz(app.dt, ( app.velocity .* cosd(degxy) ));
+                    x = cumtrapz(app.time, ( app.velocity .* sind(degxy) ));
+                    y = cumtrapz(app.time, ( app.velocity .* cosd(degxy) ));
                 end
                 % timetable変数作成
                 app.course = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
@@ -328,23 +369,22 @@ classdef logAnalysis < matlab.apps.AppBase
             plotVariableGraphs(app);
         end
         
-		% 設定用変数の保存
-		function saveVars(app)
-			folderDir = app.rootDir;
-			equations = {app.timeEditField.Value;
-						app.velocityEditField.Value;
-						app.angularVelocityEditField.Value;
-						app.radsCheckBox.Value};
-			uistatus = {app.SwitchDirection.Value;
-						app.Data1DropDown.Value;
-						app.Data2DropDown.Value;
-						app.Data3DropDown.Value;
-						};
+        % 設定用変数の保存
+        function saveVars(app)
+            folderDir = app.rootDir;
+            equations = {app.timeEditField.Value;
+                        app.velocityEditField.Value;
+                        app.angularVelocityEditField.Value;
+                        app.radsCheckBox.Value};
+            uistatus = {app.SwitchDirection.Value;
+                        app.Data1DropDown.Value;
+                        app.Data2DropDown.Value;
+                        app.Data3DropDown.Value;
+                        };
 
-			settingsFile = "src/settingVars.mat"; % 設定保存先パスを統一
-			save(settingsFile,"folderDir","equations","uistatus");
-			setTexttarea(app, "設定保存完了")
-		end
+            save("src/settingVars","folderDir","equations","uistatus");
+            setTexttarea(app, "設定保存完了")
+        end
         
         % データ処理
         function procData(app,pos)
@@ -483,54 +523,48 @@ classdef logAnalysis < matlab.apps.AppBase
     % Callbacks that handle component events
     methods (Access = private)
 
-		% Code that executes after component creation
-		function startupFcn(app)
-			% 起動時
-			try
-				settingsFile = "src/settingVars.mat"; % 設定読み込み先パスを統一
-				legacySettingsFile = "src/settingvars.mat"; % 旧パスとの互換性を確保
-				if ~isfile(settingsFile) && isfile(legacySettingsFile)
-					settingsFile = legacySettingsFile; % 既存設定ファイルがあればそのまま使用
-				end
+        % Code that executes after component creation
+        function startupFcn(app)
+            % 起動時
+            try
+                % 設定用変数ファイルの読み込み
+                % 換算式
+                equations = {};
+                uistatus = {};
+                load("src/settingvars.mat")
+                app.timeEditField.Value = equations{1};
+                app.velocityEditField.Value = equations{2};
+                app.angularVelocityEditField.Value = equations{3};
+                app.radsCheckBox.Value = equations{4};
 
-				% 設定用変数ファイルの読み込み
-				% 換算式
-				equations = {};
-				uistatus = {};
-				load(settingsFile)
-				app.timeEditField.Value = equations{1};
-				app.velocityEditField.Value = equations{2};
-				app.angularVelocityEditField.Value = equations{3};
-				app.radsCheckBox.Value = equations{4};
+                disp(uistatus)
 
-				disp(uistatus)
+                app.SwitchDirection.Value = uistatus{1};
+                app.Data1DropDown.Value = uistatus{2};
+                app.Data2DropDown.Value = uistatus{3};
+                app.Data3DropDown.Value = uistatus{4};
 
-				app.SwitchDirection.Value = uistatus{1};
-				app.Data1DropDown.Value = uistatus{2};
-				app.Data2DropDown.Value = uistatus{3};
-				app.Data3DropDown.Value = uistatus{4};
+                % フォルダパス
+                app.rootDir = folderDir;
+                app.FolderButton.Text = app.rootDir;
+            catch ME
+                if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
+                    % 設定用変数ファイルが無い
+                end
+            end
 
-				% フォルダパス
-				app.rootDir = folderDir;
-				app.FolderButton.Text = app.rootDir;
-			catch ME
-				if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
-					% 設定用変数ファイルが無い
-				end
-			end
+            app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+            getLogfiles(app);   % ログファイル一覧を取得
+            getLogdata(app);    % ログデータを取得する
+            getLogvalues(app);  % ログ変数一覧を取得
 
-			app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
-			getLogfiles(app);   % ログファイル一覧を取得
-			getLogdata(app);    % ログデータを取得する
-			getLogvalues(app);  % ログ変数一覧を取得
-
-			% スライダー範囲の設定
-			app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
-			% 変数プロットのx軸設定
-			app.UIAxes1.XLim = [0 app.time(end,1)];
-			app.UIAxes2.XLim = [0 app.time(end,1)];
-			app.UIAxes3.XLim = [0 app.time(end,1)];
-			app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
+            % スライダー範囲の設定
+            app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+            % 変数プロットのx軸設定
+            app.UIAxes1.XLim = [0 app.time(end,1)];
+            app.UIAxes2.XLim = [0 app.time(end,1)];
+            app.UIAxes3.XLim = [0 app.time(end,1)];
+            app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
 
             % コース軸の設定
             % カラーバー表示
