@@ -79,8 +79,8 @@ classdef logAnalysis < matlab.apps.AppBase
         shortCutCourse      % ショートカットの走行軌跡座標配列
         marker              % 現在地のプロット
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
+        courseColorbar  % コース描画用カラーバーハンドル
 
-        dt              % ログ記録周期
         time            % 時間配列
         velocity        % 速度配列
         angularVelocity % 角速度配列
@@ -176,8 +176,6 @@ classdef logAnalysis < matlab.apps.AppBase
 					i = i + 2;
                 end
 
-                % ログ記録周期の算出（2行以上あることを前提）
-				app.dt = app.time(2,1) - app.time(1,1);
 			catch ME
 				app.Lamp.Color = "red";	% 例外発生をランプで通知
 				setTexttarea(app, {ME.identifier, ME.message});	% エラー内容をテキストエリアに表示
@@ -304,6 +302,10 @@ classdef logAnalysis < matlab.apps.AppBase
         % コース描画
         function plotCourse(app)
             try
+                % 既存カラーバーがある場合は削除して重複表示を防止
+                if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
+                    delete(app.courseColorbar);
+                end
                 % プロット
                 scatter(app.UIAxisCourse,app.course,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
                 app.UIAxisCourse.XLim = [min(app.course.x)-100 max(app.course.x)+100];
@@ -314,6 +316,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 c = colorbar(app.UIAxisCourse);
                 c.Label.String = 'velocity[mm/s]';
                 c.Label.FontSize = 12;
+                app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
 
                 % ショートカット軌跡表示ボタンがONの時
                 if app.plotSwitch.Value == "On"
@@ -603,9 +606,13 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % コース軸の設定
             % カラーバー表示
+            if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
+                delete(app.courseColorbar); % 既存カラーバーを削除して重複を回避
+            end
             c = colorbar(app.UIAxisCourse);
             c.Label.String = 'velocity[mm/s]';
             c.Label.FontSize = 12;
+            app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
             
             % 軸設定
             if strcmp(app.SwitchDirection.Value,'CW') == 1
