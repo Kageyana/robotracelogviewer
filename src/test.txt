@@ -40,6 +40,13 @@ classdef logAnalysis < matlab.apps.AppBase
         DataDropDownLabel_2       matlab.ui.control.Label
         DataLabel                 matlab.ui.control.Label
         UIAxesAnalysis            matlab.ui.control.UIAxes
+        ShortcutTab               matlab.ui.container.Tab
+        plotSwitch                matlab.ui.control.Switch
+        plotSwitchLabel           matlab.ui.control.Label
+        windowSliderLabel         matlab.ui.control.Label
+        windowSlider              matlab.ui.control.Slider
+        consoleTab                matlab.ui.container.Tab
+        TextArea                  matlab.ui.control.TextArea
         SettingTab                matlab.ui.container.Tab
         Label                     matlab.ui.control.Label
         SwitchDirection           matlab.ui.control.ToggleSwitch
@@ -56,13 +63,6 @@ classdef logAnalysis < matlab.apps.AppBase
         angularVelocitydegsLabel  matlab.ui.control.Label
         velocityEditField         matlab.ui.control.EditField
         velocitymmsLabel          matlab.ui.control.Label
-        ShortcutTab               matlab.ui.container.Tab
-        plotSwitch                matlab.ui.control.Switch
-        plotSwitchLabel           matlab.ui.control.Label
-        windowSliderLabel         matlab.ui.control.Label
-        windowSlider              matlab.ui.control.Slider
-        consoleTab                matlab.ui.container.Tab
-        TextArea                  matlab.ui.control.TextArea
         LogDropDown               matlab.ui.control.DropDown
         LogDropDownLabel          matlab.ui.control.Label
         TimesSlider               matlab.ui.control.Slider
@@ -406,28 +406,30 @@ classdef logAnalysis < matlab.apps.AppBase
         
         % 設定用変数の保存
         function saveVars(app)
-            folderDir = app.rootDir;
-            equations = {app.timeEditField.Value;
-                        app.velocityEditField.Value;
-                        app.angularVelocityEditField.Value;
-                        app.radsCheckBox.Value};
-            uistatus = {app.SwitchDirection.Value;
-                        app.Data1DropDown.Value;
-                        app.Data2DropDown.Value;
-                        app.Data3DropDown.Value;
-                        };
-
             % 設定をCSVファイルに書き出す
 			settings = {
-				"folderDir", folderDir;
-				"timeEquation", equations{1};
-				"velocityEquation", equations{2};
-				"angularVelocityEquation", equations{3};
-				"radsCheckBox", string(equations{4});
-				"switchDirection", uistatus{1};
-				"data1", string(uistatus{2});
-				"data2", string(uistatus{3});
-				"data3", string(uistatus{4})
+                "folderDir", app.rootDir;
+				"timeEquation", app.timeEditField.Value;
+				"velocityEquation", app.velocityEditField.Value;
+				"angularVelocityEquation", app.angularVelocityEditField.Value;
+				"radsCheckBox", string(app.radsCheckBox.Value);
+				"switchDirection", app.SwitchDirection.Value;
+				"data1", string(app.Data1DropDown.Value);
+				"data2", string(app.Data2DropDown.Value);
+				"data3", string(app.Data3DropDown.Value);
+				"analysisLeft", string(app.DataAnalysisLDropDown.Value);
+				"analysisRight", string(app.DataAnalysisRDropDown.Value);
+				"smoothLeft", string(app.smoothLDropDown.Value);
+				"smoothRight", string(app.smoothRDropDown.Value);
+				"windowLeft", string(app.windowLSpinner.Value);
+				"windowRight", string(app.windowRSpinner.Value);
+				"normalizeLeft", string(app.normalizeLSwitch.Value);
+				"normalizeRight", string(app.normalizeRSwitch.Value);
+				"detrendLeft", string(app.detrendLSwitch.Value);
+				"detrendRight", string(app.detrendRSwitch.Value);
+				"ylimMatch", string(app.ylimmatchSwitch.Value);
+				"plotSwitch", string(app.plotSwitch.Value);
+				"windowSlider", string(app.windowSlider.Value)
 			};
 			settingsTable = cell2table(settings,"VariableNames",{'key','value'});
 			writetable(settingsTable,"src/settingVars.csv");
@@ -576,22 +578,44 @@ classdef logAnalysis < matlab.apps.AppBase
             % 起動時
             try
                 % 設定用変数ファイルの読み込み（CSV）
-				if isfile("src/settingVars.csv")
-					settingsTable = readtable("src/settingVars.csv","TextType","string");
-					settingsMap = containers.Map(settingsTable.key, settingsTable.value);
-
-					app.timeEditField.Value = settingsMap("timeEquation");
-					app.velocityEditField.Value = settingsMap("velocityEquation");
-					app.angularVelocityEditField.Value = settingsMap("angularVelocityEquation");
-					app.radsCheckBox.Value = lower(settingsMap("radsCheckBox")) == "true";
-
-					app.SwitchDirection.Value = settingsMap("switchDirection");
-
-					% フォルダパスをCSVから復元
-					app.rootDir = settingsMap("folderDir");
-                    str = strsplit(app.rootDir,'\');
+                if isfile("src/settingVars.csv")
+                    settingsTable = readtable("src/settingVars.csv","TextType","string");   % Table型に変換
+                    settingsMap = containers.Map(settingsTable.key, settingsTable.value);   % キーマップ作成
+                    
+                    % 換算式をCSVから復元
+                    app.timeEditField.Value = settingsMap("timeEquation");
+                    app.velocityEditField.Value = settingsMap("velocityEquation");
+                    app.angularVelocityEditField.Value = settingsMap("angularVelocityEquation");
+                    app.radsCheckBox.Value = lower(settingsMap("radsCheckBox")) == "true";
+                    
+                    % 解析・ショートカット設定をCSVから復元
+                    app.SwitchDirection.Value = settingsMap("switchDirection");
+                    app.plotSwitch.Value = settingsMap("plotSwitch");
+                    app.ylimmatchSwitch.Value = settingsMap("ylimMatch");
+                    app.normalizeLSwitch.Value = settingsMap("normalizeLeft");
+                    app.normalizeRSwitch.Value = settingsMap("normalizeRight");
+                    app.detrendLSwitch.Value = settingsMap("detrendLeft");
+                    app.detrendRSwitch.Value = settingsMap("detrendRight");
+                    
+                    % スピナー／スライダーの数値項目を文字列から復元
+                    windowLeft = str2double(settingsMap("windowLeft"));
+                    if ~isnan(windowLeft)
+                        app.windowLSpinner.Value = windowLeft;
+                    end
+                    windowRight = str2double(settingsMap("windowRight"));
+                    if ~isnan(windowRight)
+                        app.windowRSpinner.Value = windowRight;
+                    end
+                    sliderWindow = str2double(settingsMap("windowSlider"));
+                    if ~isnan(sliderWindow)
+                        app.windowSlider.Value = sliderWindow;
+                    end
+                    
+                    % フォルダパスをCSVから復元
+                    app.rootDir = settingsMap("folderDir");
+                    str = strsplit(app.rootDir, filesep);
                     app.FolderButton.Text = str{end};
-				end
+                end
             catch ME
                 if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
                     % 設定用変数ファイルが無い
@@ -599,57 +623,70 @@ classdef logAnalysis < matlab.apps.AppBase
             end
 
             % app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
-            getLogfiles(app);   % ログファイル一覧を取得
-            getLogdata(app);    % ログデータを取得する
-            getLogvalues(app);  % ログ変数一覧を取得
-
-            % 前回の表示グラフ名を取得
-            if isfile("src/settingVars.csv")
-                app.Data1DropDown.Value = settingsMap("data1");
+		    getLogfiles(app);   % ログファイル一覧を取得
+		    getLogdata(app);    % ログデータを取得する
+		    getLogvalues(app);  % ログ変数一覧を取得
+    
+		    % 前回の表示グラフ名を取得
+		    if isfile("src/settingVars.csv")
+			    app.Data1DropDown.Value = settingsMap("data1");
 			    app.Data2DropDown.Value = settingsMap("data2");
 			    app.Data3DropDown.Value = settingsMap("data3");
-            end
-
-            % スライダー範囲の設定
-            app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
-            % 変数プロットのx軸設定
-            app.UIAxes1.XLim = [0 app.time(end,1)];
-            app.UIAxes2.XLim = [0 app.time(end,1)];
-            app.UIAxes3.XLim = [0 app.time(end,1)];
-            app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
-
-            % コース軸の設定
-            % カラーバー表示
-            if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
-                delete(app.courseColorbar); % 既存カラーバーを削除して重複を回避
-            end
-            c = colorbar(app.UIAxisCourse);
-            c.Label.String = 'velocity[mm/s]';
-            c.Label.FontSize = 12;
-            app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
-            
-            % 軸設定
-            if strcmp(app.SwitchDirection.Value,'CW') == 1
-                app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
-                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
-            else
-                app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
-                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
-            end
-            app.UIAxisCourse.XTick = -10000:100:10000;
-            app.UIAxisCourse.YTick = -10000:100:10000;
-
-            % コース描画、変数グラフ表示
-            % コース座標計算
-            calcCourseplot(app);    % コース座標計算
-            
-            % コース描画
-            plotCourse(app)
-
-            % 変数プロット
-            plotVariableGraphs(app);
-
-            % 単位変更
+                
+			    if isKey(settingsMap,"analysisLeft") && ismember(settingsMap("analysisLeft"), string(app.DataAnalysisLDropDown.Items))
+				    app.DataAnalysisLDropDown.Value = settingsMap("analysisLeft");
+			    end
+			    if isKey(settingsMap,"analysisRight") && ismember(settingsMap("analysisRight"), string(app.DataAnalysisRDropDown.Items))
+				    app.DataAnalysisRDropDown.Value = settingsMap("analysisRight");
+			    end
+			    if isKey(settingsMap,"smoothLeft")
+				    app.smoothLDropDown.Value = settingsMap("smoothLeft");
+			    end
+			    if isKey(settingsMap,"smoothRight")
+				    app.smoothRDropDown.Value = settingsMap("smoothRight");
+			    end
+		    end
+    
+		    % スライダー範囲の設定
+		    app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+		    % 変数プロットのx軸設定
+		    app.UIAxes1.XLim = [0 app.time(end,1)];
+		    app.UIAxes2.XLim = [0 app.time(end,1)];
+		    app.UIAxes3.XLim = [0 app.time(end,1)];
+		    app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
+    
+		    % コース軸の設定
+		    % カラーバー表示
+		    if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
+			    delete(app.courseColorbar); % 既存カラーバーを削除して重複を回避
+		    end
+		    c = colorbar(app.UIAxisCourse);
+		    c.Label.String = 'velocity[mm/s]';
+		    c.Label.FontSize = 12;
+		    app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
+    
+		    % 軸設定
+		    if strcmp(app.SwitchDirection.Value,'CW') == 1
+			    app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
+			    app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
+		    else
+			    app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
+			    app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
+		    end
+		    app.UIAxisCourse.XTick = -10000:100:10000;
+		    app.UIAxisCourse.YTick = -10000:100:10000;
+    
+		    % コース描画、変数グラフ表示
+		    % コース座標計算
+		    calcCourseplot(app);    % コース座標計算
+    
+		    % コース描画
+		    plotCourse(app)
+    
+		    % 変数プロット
+		    plotVariableGraphs(app);
+    
+		    % 単位変更
             if app.radsCheckBox.Value == 0
                 app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
             elseif app.radsCheckBox.Value == 1
@@ -968,52 +1005,52 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIAxes3 = uiaxes(app.GraphsTab);
             title(app.UIAxes3, 'Title')
             xlabel(app.UIAxes3, 'Time [s]')
-            app.UIAxes3.Position = [34 25 542 185];
+            app.UIAxes3.Position = [24 25 552 185];
 
             % Create UIAxes2
             app.UIAxes2 = uiaxes(app.GraphsTab);
             title(app.UIAxes2, 'Title')
             xlabel(app.UIAxes2, 'Time [s]')
-            app.UIAxes2.Position = [34 258 542 185];
+            app.UIAxes2.Position = [24 258 552 185];
 
             % Create UIAxes1
             app.UIAxes1 = uiaxes(app.GraphsTab);
             title(app.UIAxes1, 'Title')
             xlabel(app.UIAxes1, 'Time [s]')
-            app.UIAxes1.Position = [34 478 542 185];
+            app.UIAxes1.Position = [24 478 552 185];
 
             % Create Data1DropDownLabel
             app.Data1DropDownLabel = uilabel(app.GraphsTab);
             app.Data1DropDownLabel.HorizontalAlignment = 'right';
-            app.Data1DropDownLabel.Position = [42 662 38 22];
+            app.Data1DropDownLabel.Position = [63 662 38 22];
             app.Data1DropDownLabel.Text = 'Data1';
 
             % Create Data1DropDown
             app.Data1DropDown = uidropdown(app.GraphsTab);
             app.Data1DropDown.ValueChangedFcn = createCallbackFcn(app, @Data1DropDownValueChanged, true);
-            app.Data1DropDown.Position = [95 662 100 22];
+            app.Data1DropDown.Position = [116 662 100 22];
 
             % Create Data2DropDownLabel
             app.Data2DropDownLabel = uilabel(app.GraphsTab);
             app.Data2DropDownLabel.HorizontalAlignment = 'right';
-            app.Data2DropDownLabel.Position = [42 442 38 22];
+            app.Data2DropDownLabel.Position = [63 442 38 22];
             app.Data2DropDownLabel.Text = 'Data2';
 
             % Create Data2DropDown
             app.Data2DropDown = uidropdown(app.GraphsTab);
             app.Data2DropDown.ValueChangedFcn = createCallbackFcn(app, @Data2DropDownValueChanged, true);
-            app.Data2DropDown.Position = [95 442 100 22];
+            app.Data2DropDown.Position = [116 442 100 22];
 
             % Create Data3DropDownLabel
             app.Data3DropDownLabel = uilabel(app.GraphsTab);
             app.Data3DropDownLabel.HorizontalAlignment = 'right';
-            app.Data3DropDownLabel.Position = [34 209 38 22];
+            app.Data3DropDownLabel.Position = [63 209 38 22];
             app.Data3DropDownLabel.Text = 'Data3';
 
             % Create Data3DropDown
             app.Data3DropDown = uidropdown(app.GraphsTab);
             app.Data3DropDown.ValueChangedFcn = createCallbackFcn(app, @Data3DropDownValueChanged, true);
-            app.Data3DropDown.Position = [87 209 100 22];
+            app.Data3DropDown.Position = [116 209 100 22];
 
             % Create AnalysisTab
             app.AnalysisTab = uitab(app.TabGroup);
@@ -1156,6 +1193,43 @@ classdef logAnalysis < matlab.apps.AppBase
             app.ylimmatchSwitch.ValueChangedFcn = createCallbackFcn(app, @ylimmatchSwitchValueChanged, true);
             app.ylimmatchSwitch.Position = [272 529 20 45];
 
+            % Create ShortcutTab
+            app.ShortcutTab = uitab(app.TabGroup);
+            app.ShortcutTab.Title = 'Short cut';
+
+            % Create windowSlider
+            app.windowSlider = uislider(app.ShortcutTab);
+            app.windowSlider.Limits = [1 50];
+            app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
+            app.windowSlider.Position = [211 367 150 3];
+            app.windowSlider.Value = 1;
+
+            % Create windowSliderLabel
+            app.windowSliderLabel = uilabel(app.ShortcutTab);
+            app.windowSliderLabel.HorizontalAlignment = 'right';
+            app.windowSliderLabel.Position = [144 358 45 22];
+            app.windowSliderLabel.Text = 'window';
+
+            % Create plotSwitchLabel
+            app.plotSwitchLabel = uilabel(app.ShortcutTab);
+            app.plotSwitchLabel.HorizontalAlignment = 'center';
+            app.plotSwitchLabel.Position = [270 473 25 22];
+            app.plotSwitchLabel.Text = 'plot';
+
+            % Create plotSwitch
+            app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
+            app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
+            app.plotSwitch.Position = [259 510 45 20];
+
+            % Create consoleTab
+            app.consoleTab = uitab(app.TabGroup);
+            app.consoleTab.Title = 'console';
+
+            % Create TextArea
+            app.TextArea = uitextarea(app.consoleTab);
+            app.TextArea.FontSize = 9;
+            app.TextArea.Position = [0 2 589 689];
+
             % Create SettingTab
             app.SettingTab = uitab(app.TabGroup);
             app.SettingTab.Title = 'Setting';
@@ -1251,43 +1325,6 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Label = uilabel(app.SettingTab);
             app.Label.Position = [213 357 94 22];
             app.Label.Text = 'Course Direction';
-
-            % Create ShortcutTab
-            app.ShortcutTab = uitab(app.TabGroup);
-            app.ShortcutTab.Title = 'Short cut';
-
-            % Create windowSlider
-            app.windowSlider = uislider(app.ShortcutTab);
-            app.windowSlider.Limits = [1 50];
-            app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
-            app.windowSlider.Position = [211 367 150 3];
-            app.windowSlider.Value = 1;
-
-            % Create windowSliderLabel
-            app.windowSliderLabel = uilabel(app.ShortcutTab);
-            app.windowSliderLabel.HorizontalAlignment = 'right';
-            app.windowSliderLabel.Position = [144 358 45 22];
-            app.windowSliderLabel.Text = 'window';
-
-            % Create plotSwitchLabel
-            app.plotSwitchLabel = uilabel(app.ShortcutTab);
-            app.plotSwitchLabel.HorizontalAlignment = 'center';
-            app.plotSwitchLabel.Position = [270 473 25 22];
-            app.plotSwitchLabel.Text = 'plot';
-
-            % Create plotSwitch
-            app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
-            app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
-            app.plotSwitch.Position = [259 510 45 20];
-
-            % Create consoleTab
-            app.consoleTab = uitab(app.TabGroup);
-            app.consoleTab.Title = 'console';
-
-            % Create TextArea
-            app.TextArea = uitextarea(app.consoleTab);
-            app.TextArea.FontSize = 9;
-            app.TextArea.Position = [0 2 589 689];
 
             % Create Button_Rotate
             app.Button_Rotate = uibutton(app.UIFigure, 'push');
