@@ -328,22 +328,23 @@ classdef logAnalysis < matlab.apps.AppBase
             plotVariableGraphs(app);
         end
         
-        % 設定用変数の保存
-        function saveVars(app)
-            folderDir = app.rootDir;
-            equations = {app.timeEditField.Value;
-                        app.velocityEditField.Value;
-                        app.angularVelocityEditField.Value;
-                        app.radsCheckBox.Value};
-            uistatus = {app.SwitchDirection.Value;
-                        app.Data1DropDown.Value;
-                        app.Data2DropDown.Value;
-                        app.Data3DropDown.Value;
-                        };
+		% 設定用変数の保存
+		function saveVars(app)
+			folderDir = app.rootDir;
+			equations = {app.timeEditField.Value;
+						app.velocityEditField.Value;
+						app.angularVelocityEditField.Value;
+						app.radsCheckBox.Value};
+			uistatus = {app.SwitchDirection.Value;
+						app.Data1DropDown.Value;
+						app.Data2DropDown.Value;
+						app.Data3DropDown.Value;
+						};
 
-            save("src/settingVars","folderDir","equations","uistatus");
-            setTexttarea(app, "設定保存完了")
-        end
+			settingsFile = "src/settingVars.mat"; % 設定保存先パスを統一
+			save(settingsFile,"folderDir","equations","uistatus");
+			setTexttarea(app, "設定保存完了")
+		end
         
         % データ処理
         function procData(app,pos)
@@ -482,48 +483,54 @@ classdef logAnalysis < matlab.apps.AppBase
     % Callbacks that handle component events
     methods (Access = private)
 
-        % Code that executes after component creation
-        function startupFcn(app)
-            % 起動時
-            try
-                % 設定用変数ファイルの読み込み
-                % 換算式
-                equations = {};
-                uistatus = {};
-                load("src/settingvars.mat")
-                app.timeEditField.Value = equations{1};
-                app.velocityEditField.Value = equations{2};
-                app.angularVelocityEditField.Value = equations{3};
-                app.radsCheckBox.Value = equations{4};
+		% Code that executes after component creation
+		function startupFcn(app)
+			% 起動時
+			try
+				settingsFile = "src/settingVars.mat"; % 設定読み込み先パスを統一
+				legacySettingsFile = "src/settingvars.mat"; % 旧パスとの互換性を確保
+				if ~isfile(settingsFile) && isfile(legacySettingsFile)
+					settingsFile = legacySettingsFile; % 既存設定ファイルがあればそのまま使用
+				end
 
-                disp(uistatus)
+				% 設定用変数ファイルの読み込み
+				% 換算式
+				equations = {};
+				uistatus = {};
+				load(settingsFile)
+				app.timeEditField.Value = equations{1};
+				app.velocityEditField.Value = equations{2};
+				app.angularVelocityEditField.Value = equations{3};
+				app.radsCheckBox.Value = equations{4};
 
-                app.SwitchDirection.Value = uistatus{1};
-                app.Data1DropDown.Value = uistatus{2};
-                app.Data2DropDown.Value = uistatus{3};
-                app.Data3DropDown.Value = uistatus{4};
+				disp(uistatus)
 
-                % フォルダパス
-                app.rootDir = folderDir;
-                app.FolderButton.Text = app.rootDir;
-            catch ME
-                if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
-                    % 設定用変数ファイルが無い
-                end
-            end
+				app.SwitchDirection.Value = uistatus{1};
+				app.Data1DropDown.Value = uistatus{2};
+				app.Data2DropDown.Value = uistatus{3};
+				app.Data3DropDown.Value = uistatus{4};
 
-            app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
-            getLogfiles(app);   % ログファイル一覧を取得
-            getLogdata(app);    % ログデータを取得する
-            getLogvalues(app);  % ログ変数一覧を取得
+				% フォルダパス
+				app.rootDir = folderDir;
+				app.FolderButton.Text = app.rootDir;
+			catch ME
+				if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
+					% 設定用変数ファイルが無い
+				end
+			end
 
-            % スライダー範囲の設定
-            app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
-            % 変数プロットのx軸設定
-            app.UIAxes1.XLim = [0 app.time(end,1)];
-            app.UIAxes2.XLim = [0 app.time(end,1)];
-            app.UIAxes3.XLim = [0 app.time(end,1)];
-            app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
+			app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+			getLogfiles(app);   % ログファイル一覧を取得
+			getLogdata(app);    % ログデータを取得する
+			getLogvalues(app);  % ログ変数一覧を取得
+
+			% スライダー範囲の設定
+			app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+			% 変数プロットのx軸設定
+			app.UIAxes1.XLim = [0 app.time(end,1)];
+			app.UIAxes2.XLim = [0 app.time(end,1)];
+			app.UIAxes3.XLim = [0 app.time(end,1)];
+			app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
 
             % コース軸の設定
             % カラーバー表示
