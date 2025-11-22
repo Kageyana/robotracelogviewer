@@ -48,6 +48,9 @@ classdef logAnalysis < matlab.apps.AppBase
         consoleTab                matlab.ui.container.Tab
         TextArea                  matlab.ui.control.TextArea
         SettingTab                matlab.ui.container.Tab
+        SettingCSVfilepathLabel   matlab.ui.control.Label
+        csvFilePathButton         matlab.ui.control.Button
+        csvFilePathEditer         matlab.ui.control.EditField
         Label                     matlab.ui.control.Label
         SwitchDirection           matlab.ui.control.ToggleSwitch
         CourseajustgyroKnob       matlab.ui.control.Knob
@@ -77,6 +80,7 @@ classdef logAnalysis < matlab.apps.AppBase
     %プロパティ
     properties (Access = private)
         rootDir % ログフォルダのディレクトリ
+        csvFileName = "LogViewerSetting.csv"
         textarea = {}       % テキストエリアに表示する文字列用cell配列
         log                 % ログデータ用table変数
         course              % 走行軌跡の座標配列
@@ -408,7 +412,7 @@ classdef logAnalysis < matlab.apps.AppBase
         function saveVars(app)
             % 設定をCSVファイルに書き出す
 			settings = {
-                "folderDir", app.rootDir;
+                "logFolderDir", app.rootDir;
 				"timeEquation", app.timeEditField.Value;
 				"velocityEquation", app.velocityEditField.Value;
 				"angularVelocityEquation", app.angularVelocityEditField.Value;
@@ -431,8 +435,15 @@ classdef logAnalysis < matlab.apps.AppBase
 				"plotSwitch", string(app.plotSwitch.Value);
 				"windowSlider", string(app.windowSlider.Value)
 			};
-			settingsTable = cell2table(settings,"VariableNames",{'key','value'});
-			writetable(settingsTable,"src/settingVars.csv");
+			settingsTable = cell2table(settings,"VariableNames",{'key','value'}); % table作成
+
+            if app.csvFilePathEditer.Value == ""
+                F = msgbox("設定ファイルの保存フォルダを選択してください");
+                app.csvFilePathEditer.Value = uigetdir; % パスがないときはフォルダーを選択する
+                close(F);
+            end
+            filePath = append(app.csvFilePathEditer.Value,"\",app.csvFileName);
+			writetable(settingsTable,filePath);
             setTexttarea(app, "設定保存完了")
         end
         
@@ -577,12 +588,17 @@ classdef logAnalysis < matlab.apps.AppBase
     methods (Access = private)
 
         % Code that executes after component creation
-        function startupFcn(app)
+        function startupFcn(app, arg1)
             % 起動時
             try
+                % 設定ファイルを選択する
+                F = msgbox("設定ファイルを選択してください");
+                [filePath,location] = uigetfile({'*.csv'});
+                close(F);
                 % 設定用変数ファイルの読み込み（CSV）
-                if isfile("src/settingVars.csv")
-                    settingsTable = readtable("src/settingVars.csv","TextType","string");   % Table型に変換
+                if filePath ~= 0
+                    filePath = append(location,filePath);
+                    settingsTable = readtable(filePath,"TextType","string");   % Table型に変換
                     settingsMap = containers.Map(settingsTable.key, settingsTable.value);   % キーマップ作成
                     
                     % 換算式をCSVから復元
@@ -614,10 +630,18 @@ classdef logAnalysis < matlab.apps.AppBase
                         app.windowSlider.Value = sliderWindow;
                     end
                     
-                    % フォルダパスをCSVから復元
-                    app.rootDir = settingsMap("folderDir");
+                    % ログフォルダパスをCSVから復元
+                    app.rootDir = settingsMap("logFolderDir");
                     str = strsplit(app.rootDir, filesep);
                     app.FolderButton.Text = str{end};
+
+                    % 設定ファイルのパスをCSVから復元
+                    app.csvFilePathEditer.Value = location;
+                else
+                    % 設定ファイルが無いときはログフォルダを選択する
+                    F = msgbox("ログファイルの保存フォルダを選択してください");
+                    app.rootDir = uigetdir;
+                    close(F);
                 end
             catch ME
                 if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
@@ -625,7 +649,6 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
             end
 
-            % app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
 		    getLogfiles(app);   % ログファイル一覧を取得
 		    getLogdata(app);    % ログデータを取得する
 		    getLogvalues(app);  % ログ変数一覧を取得
@@ -923,6 +946,12 @@ classdef logAnalysis < matlab.apps.AppBase
 
                 app.UIAxisCourse.Position = [1 45 1162 608];
             end
+        end
+
+        % Button pushed function: csvFilePathButton
+        function csvFilePathButtonPushed(app, event)
+            fileDir = uigetdir;
+            app.csvFilePathEditer.Value = fileDir;
         end
     end
 
@@ -1240,80 +1269,80 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create velocitymmsLabel
             app.velocitymmsLabel = uilabel(app.SettingTab);
             app.velocitymmsLabel.HorizontalAlignment = 'right';
-            app.velocitymmsLabel.Position = [62 602 99 22];
+            app.velocitymmsLabel.Position = [62 502 99 22];
             app.velocitymmsLabel.Text = 'velocity [mm/s] = ';
 
             % Create velocityEditField
             app.velocityEditField = uieditfield(app.SettingTab, 'text');
-            app.velocityEditField.Position = [176 602 326 22];
+            app.velocityEditField.Position = [176 502 326 22];
             app.velocityEditField.Value = 'encCurrentN / 60.074 * 1000';
 
             % Create angularVelocitydegsLabel
             app.angularVelocitydegsLabel = uilabel(app.SettingTab);
             app.angularVelocitydegsLabel.HorizontalAlignment = 'right';
-            app.angularVelocitydegsLabel.Position = [21 572 140 22];
+            app.angularVelocitydegsLabel.Position = [21 472 140 22];
             app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
 
             % Create angularVelocityEditField
             app.angularVelocityEditField = uieditfield(app.SettingTab, 'text');
-            app.angularVelocityEditField.Position = [176 572 326 22];
+            app.angularVelocityEditField.Position = [176 472 326 22];
             app.angularVelocityEditField.Value = 'gyroVal_Z / 10000 * -1';
 
             % Create velocitymmsLabel_2
             app.velocitymmsLabel_2 = uilabel(app.SettingTab);
             app.velocitymmsLabel_2.HorizontalAlignment = 'right';
-            app.velocitymmsLabel_2.Position = [62 631 99 22];
+            app.velocitymmsLabel_2.Position = [62 531 99 22];
             app.velocitymmsLabel_2.Text = 'time [s] = ';
 
             % Create timeEditField
             app.timeEditField = uieditfield(app.SettingTab, 'text');
-            app.timeEditField.Position = [176 631 326 22];
+            app.timeEditField.Position = [176 531 326 22];
             app.timeEditField.Value = 'cntlog / 1000';
 
             % Create TranslateequationsLabel
             app.TranslateequationsLabel = uilabel(app.SettingTab);
             app.TranslateequationsLabel.HorizontalAlignment = 'center';
             app.TranslateequationsLabel.FontSize = 18;
-            app.TranslateequationsLabel.Position = [17 661 162 23];
+            app.TranslateequationsLabel.Position = [17 561 162 23];
             app.TranslateequationsLabel.Text = 'Translate equations';
 
             % Create radsCheckBox
             app.radsCheckBox = uicheckbox(app.SettingTab);
             app.radsCheckBox.ValueChangedFcn = createCallbackFcn(app, @radsCheckBoxValueChanged, true);
             app.radsCheckBox.Text = '[rad/s]';
-            app.radsCheckBox.Position = [521 572 55 22];
+            app.radsCheckBox.Position = [521 472 55 22];
             app.radsCheckBox.Value = true;
 
             % Create SwitchLabel
             app.SwitchLabel = uilabel(app.SettingTab);
             app.SwitchLabel.HorizontalAlignment = 'center';
-            app.SwitchLabel.Position = [17 484 347 22];
+            app.SwitchLabel.Position = [17 421 347 22];
             app.SwitchLabel.Text = {'Click on the variable graph to display the position on the course'; ''};
 
             % Create graphPositionBotton
             app.graphPositionBotton = uiswitch(app.SettingTab, 'slider');
             app.graphPositionBotton.ValueChangedFcn = createCallbackFcn(app, @graphPositionBottonValueChanged, true);
-            app.graphPositionBotton.Position = [494 485 45 20];
+            app.graphPositionBotton.Position = [494 422 45 20];
 
             % Create Spinner
             app.Spinner = uispinner(app.SettingTab);
             app.Spinner.Step = 0.001;
             app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
             app.Spinner.Limits = [0.9 1.4];
-            app.Spinner.Position = [67 273 85 22];
+            app.Spinner.Position = [67 210 85 22];
             app.Spinner.Value = 1;
 
             % Create CourseajustgyroKnobLabel
             app.CourseajustgyroKnobLabel = uilabel(app.SettingTab);
             app.CourseajustgyroKnobLabel.HorizontalAlignment = 'center';
-            app.CourseajustgyroKnobLabel.Position = [51 404 107 22];
+            app.CourseajustgyroKnobLabel.Position = [51 341 107 22];
             app.CourseajustgyroKnobLabel.Text = 'Course ajust (gyro)';
 
             % Create CourseajustgyroKnob
             app.CourseajustgyroKnob = uiknob(app.SettingTab, 'continuous');
             app.CourseajustgyroKnob.Limits = [0.9 1.4];
             app.CourseajustgyroKnob.ValueChangingFcn = createCallbackFcn(app, @CourseajustgyroKnobValueChanging, true);
-            app.CourseajustgyroKnob.Position = [75 323 60 60];
+            app.CourseajustgyroKnob.Position = [75 260 60 60];
             app.CourseajustgyroKnob.Value = 1;
 
             % Create SwitchDirection
@@ -1321,13 +1350,30 @@ classdef logAnalysis < matlab.apps.AppBase
             app.SwitchDirection.Items = {'CCW', 'CW'};
             app.SwitchDirection.Orientation = 'horizontal';
             app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
-            app.SwitchDirection.Position = [243 323 45 20];
+            app.SwitchDirection.Position = [243 260 45 20];
             app.SwitchDirection.Value = 'CW';
 
             % Create Label
             app.Label = uilabel(app.SettingTab);
-            app.Label.Position = [213 356 94 22];
+            app.Label.Position = [213 293 94 22];
             app.Label.Text = 'Course Direction';
+
+            % Create csvFilePathEditer
+            app.csvFilePathEditer = uieditfield(app.SettingTab, 'text');
+            app.csvFilePathEditer.Position = [173 617 330 22];
+
+            % Create csvFilePathButton
+            app.csvFilePathButton = uibutton(app.SettingTab, 'push');
+            app.csvFilePathButton.ButtonPushedFcn = createCallbackFcn(app, @csvFilePathButtonPushed, true);
+            app.csvFilePathButton.Position = [52 616 100 23];
+            app.csvFilePathButton.Text = 'path';
+
+            % Create SettingCSVfilepathLabel
+            app.SettingCSVfilepathLabel = uilabel(app.SettingTab);
+            app.SettingCSVfilepathLabel.HorizontalAlignment = 'center';
+            app.SettingCSVfilepathLabel.FontSize = 18;
+            app.SettingCSVfilepathLabel.Position = [13 654 171 23];
+            app.SettingCSVfilepathLabel.Text = 'Setting CSV file path';
 
             % Create Button_Rotate
             app.Button_Rotate = uibutton(app.UIFigure, 'push');
@@ -1354,7 +1400,7 @@ classdef logAnalysis < matlab.apps.AppBase
     methods (Access = public)
 
         % Construct app
-        function app = logAnalysis
+        function app = logAnalysis(varargin)
 
             % Create UIFigure and components
             createComponents(app)
@@ -1363,7 +1409,7 @@ classdef logAnalysis < matlab.apps.AppBase
             registerApp(app, app.UIFigure)
 
             % Execute the startup function
-            runStartupFcn(app, @startupFcn)
+            runStartupFcn(app, @(app)startupFcn(app, varargin{:}))
 
             if nargout == 0
                 clear app
