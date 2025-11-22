@@ -98,9 +98,6 @@ classdef logAnalysis < matlab.apps.AppBase
             filename = strsplit(app.LogDropDown.Value);
 			filename = filename{1};
 			app.log = readtable(append(app.rootDir,'\',filename,".csv"));      % ログファイル読み込み
-			%             app.time = app.log.cntlog ./ 1000;                             % 時間行列[s]
-			%             app.velocity = app.log.encCurrentN / app.pulse * 1000;  % 速度行列[mm/s]
-			%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
 
 			% テキストフィールドから換算式を取得
             % 時間行列[s]
@@ -333,7 +330,7 @@ classdef logAnalysis < matlab.apps.AppBase
         % ログの取得、再プロット
         function reload(app,EventName)
             if max(strcmp(EventName,"ButtonPushed")) == 1
-                app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+                % app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
                 getLogfiles(app);   % ログファイル一覧を取得
             end
             getLogdata(app);    % ログデータを取得する
@@ -393,9 +390,9 @@ classdef logAnalysis < matlab.apps.AppBase
 				"angularVelocityEquation", equations{3};
 				"radsCheckBox", string(equations{4});
 				"switchDirection", uistatus{1};
-				"data1", uistatus{2};
-				"data2", uistatus{3};
-				"data3", uistatus{4}
+				"data1", string(uistatus{2});
+				"data2", string(uistatus{3});
+				"data3", string(uistatus{4})
 			};
 			settingsTable = cell2table(settings,"VariableNames",{'key','value'});
 			writetable(settingsTable,"src/settingVars.csv");
@@ -554,13 +551,11 @@ classdef logAnalysis < matlab.apps.AppBase
 					app.radsCheckBox.Value = lower(settingsMap("radsCheckBox")) == "true";
 
 					app.SwitchDirection.Value = settingsMap("switchDirection");
-					app.Data1DropDown.Value = settingsMap("data1");
-					app.Data2DropDown.Value = settingsMap("data2");
-					app.Data3DropDown.Value = settingsMap("data3");
 
 					% フォルダパスをCSVから復元
 					app.rootDir = settingsMap("folderDir");
-					app.FolderButton.Text = app.rootDir;
+                    str = strsplit(app.rootDir,'\');
+                    app.FolderButton.Text = str{end};
 				end
             catch ME
                 if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
@@ -568,10 +563,17 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
             end
 
-            app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
+            % app.rootDir = app.FolderButton.Text; % ログフォルダのディレクトリを取得
             getLogfiles(app);   % ログファイル一覧を取得
             getLogdata(app);    % ログデータを取得する
             getLogvalues(app);  % ログ変数一覧を取得
+
+            % 前回の表示グラフ名を取得
+            if isfile("src/settingVars.csv")
+                app.Data1DropDown.Value = settingsMap("data1");
+			    app.Data2DropDown.Value = settingsMap("data2");
+			    app.Data3DropDown.Value = settingsMap("data3");
+            end
 
             % スライダー範囲の設定
             app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
@@ -623,7 +625,8 @@ classdef logAnalysis < matlab.apps.AppBase
             % フォルダー選択
             app.rootDir = uigetdir;
             if app.rootDir ~= 0
-                app.FolderButton.Text = app.rootDir;
+                str = strsplit(app.rootDir,'\');
+                app.FolderButton.Text = str{end};
                 getLogfiles(app);       % ログファイル一覧を取得
             end
         end
@@ -840,8 +843,8 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create FolderButton
             app.FolderButton = uibutton(app.UIFigure, 'push');
             app.FolderButton.ButtonPushedFcn = createCallbackFcn(app, @FolderButtonPushed, true);
-            app.FolderButton.Position = [57 680 228 23];
-            app.FolderButton.Text = 'F:\Dropbox\Document\robotrace\Log\v2';
+            app.FolderButton.Position = [112 681 130 23];
+            app.FolderButton.Text = 'path';
 
             % Create FolderpathLabel
             app.FolderpathLabel = uilabel(app.UIFigure);
@@ -909,7 +912,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.LogDropDown = uidropdown(app.UIFigure);
             app.LogDropDown.Items = {'option'};
             app.LogDropDown.ValueChangedFcn = createCallbackFcn(app, @LogDropDownValueChanged, true);
-            app.LogDropDown.Position = [282 681 100 22];
+            app.LogDropDown.Position = [282 681 133 22];
             app.LogDropDown.Value = 'option';
 
             % Create TabGroup
