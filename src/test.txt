@@ -442,9 +442,11 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.csvFilePathEditer.Value = uigetdir; % パスがないときはフォルダーを選択する
                 close(F);
             end
-            filePath = append(app.csvFilePathEditer.Value,"\",app.csvFileName);
-			writetable(settingsTable,filePath);
-            setTexttarea(app, "設定保存完了")
+            if app.csvFilePathEditer.Value ~= 0
+                filePath = append(app.csvFilePathEditer.Value,"\",app.csvFileName);
+			    writetable(settingsTable,filePath);
+                setTexttarea(app, "設定保存完了")
+            end
         end
         
         % データ処理
@@ -951,7 +953,9 @@ classdef logAnalysis < matlab.apps.AppBase
         % Button pushed function: csvFilePathButton
         function csvFilePathButtonPushed(app, event)
             fileDir = uigetdir;
-            app.csvFilePathEditer.Value = fileDir;
+            if fileDir ~= 0
+                app.csvFilePathEditer.Value = fileDir;
+            end
         end
     end
 
