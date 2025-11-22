@@ -532,9 +532,7 @@ classdef logAnalysis < matlab.apps.AppBase
             try
                 % 設定用変数ファイルの読み込み
                 % 換算式
-                equations = {};
-                uistatus = {};
-                load("src/settingvars.mat")
+                load("src/settingvars.mat","folderDir","equations","uistatus")
                 app.timeEditField.Value = equations{1};
                 app.velocityEditField.Value = equations{2};
                 app.angularVelocityEditField.Value = equations{3};
