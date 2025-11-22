@@ -267,7 +267,13 @@ classdef logAnalysis < matlab.apps.AppBase
         % ショートカット軌跡座標の計算
         function calcShortCutplot(app)
             try
+                % windowが1未満の場合は処理を中断
                 app.windowSlider.Value = round(app.windowSlider.Value);
+                if app.windowSlider.Value < 1
+                    app.Lamp.Color = "red";     % ステータスランプ赤
+                    setTexttarea(app, {"windowの値が1未満です", "1以上に設定してください"});
+                    return;
+                end
                 % 座標算出
                 x = movmean(app.course.x,app.windowSlider.Value);
                 y = movmean(app.course.y,app.windowSlider.Value);
@@ -802,6 +808,10 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Value changed function: windowSlider
         function windowSliderValueChanged(app, event)
+            % windowSliderの値が1未満にならないよう補正
+            if app.windowSlider.Value < 1
+                app.windowSlider.Value = 1;
+            end
             calcShortCutplot(app);
             plotCourse(app);
         end
@@ -981,7 +991,7 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create UIAxesAnalysis
             app.UIAxesAnalysis = uiaxes(app.AnalysisTab);
             xlabel(app.UIAxesAnalysis, 'Time [s]')
-            app.UIAxesAnalysis.Position = [17 25 559 343];
+            app.UIAxesAnalysis.Position = [17 25 559 437];
 
             % Create DataLabel
             app.DataLabel = uilabel(app.AnalysisTab);
@@ -1183,9 +1193,10 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % Create windowSlider
             app.windowSlider = uislider(app.ShortcutTab);
-            app.windowSlider.Limits = [0 50];
+            app.windowSlider.Limits = [1 50];
             app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
             app.windowSlider.Position = [211 367 150 3];
+            app.windowSlider.Value = 1;
 
             % Create windowSliderLabel
             app.windowSliderLabel = uilabel(app.ShortcutTab);
