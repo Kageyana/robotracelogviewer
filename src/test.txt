@@ -385,7 +385,20 @@ classdef logAnalysis < matlab.apps.AppBase
                         app.Data3DropDown.Value;
                         };
 
-            save("src/settingVars","folderDir","equations","uistatus");
+            % 設定をCSVファイルに書き出す
+			settings = {
+				"folderDir", folderDir;
+				"timeEquation", equations{1};
+				"velocityEquation", equations{2};
+				"angularVelocityEquation", equations{3};
+				"radsCheckBox", string(equations{4});
+				"switchDirection", uistatus{1};
+				"data1", uistatus{2};
+				"data2", uistatus{3};
+				"data3", uistatus{4}
+			};
+			settingsTable = cell2table(settings,"VariableNames",{'key','value'});
+			writetable(settingsTable,"src/settingVars.csv");
             setTexttarea(app, "設定保存完了")
         end
         
@@ -530,24 +543,25 @@ classdef logAnalysis < matlab.apps.AppBase
         function startupFcn(app)
             % 起動時
             try
-                % 設定用変数ファイルの読み込み
-                % 換算式
-                load("src/settingvars.mat","folderDir","equations","uistatus")
-                app.timeEditField.Value = equations{1};
-                app.velocityEditField.Value = equations{2};
-                app.angularVelocityEditField.Value = equations{3};
-                app.radsCheckBox.Value = equations{4};
+                % 設定用変数ファイルの読み込み（CSV）
+				if isfile("src/settingVars.csv")
+					settingsTable = readtable("src/settingVars.csv","TextType","string");
+					settingsMap = containers.Map(settingsTable.key, settingsTable.value);
 
-                disp(uistatus)
+					app.timeEditField.Value = settingsMap("timeEquation");
+					app.velocityEditField.Value = settingsMap("velocityEquation");
+					app.angularVelocityEditField.Value = settingsMap("angularVelocityEquation");
+					app.radsCheckBox.Value = lower(settingsMap("radsCheckBox")) == "true";
 
-                app.SwitchDirection.Value = uistatus{1};
-                app.Data1DropDown.Value = uistatus{2};
-                app.Data2DropDown.Value = uistatus{3};
-                app.Data3DropDown.Value = uistatus{4};
+					app.SwitchDirection.Value = settingsMap("switchDirection");
+					app.Data1DropDown.Value = settingsMap("data1");
+					app.Data2DropDown.Value = settingsMap("data2");
+					app.Data3DropDown.Value = settingsMap("data3");
 
-                % フォルダパス
-                app.rootDir = folderDir;
-                app.FolderButton.Text = app.rootDir;
+					% フォルダパスをCSVから復元
+					app.rootDir = settingsMap("folderDir");
+					app.FolderButton.Text = app.rootDir;
+				end
             catch ME
                 if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
                     % 設定用変数ファイルが無い
