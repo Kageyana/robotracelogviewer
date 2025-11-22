@@ -186,39 +186,42 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % ログファイル一覧の取得
         function getLogfiles(app)
-            try
-                origDir = pwd;              % カレントディレクトリを保存
-                cd(app.rootDir);            % ディレクトリを移動
-                fileList = dir('*.csv');    % csvファイル一覧を取得
-                cd(origDir);                % もとのディレクトリに移動
-                fileList = struct2table(fileList);  % table型に変換
-                fileList.name = convertCharsToStrings(fileList.name);    % String型に変換
-                fileList.name = erase(fileList.name,lettersPattern | characterListPattern("."));   % 文字と.を削除
-                fileList.name = str2double(fileList.name);              % double型に変換
-                idx = isnan(fileList.name);     % NaNを含む行を検索
-                fileList = fileList(~idx,:);    % NaNを含まない行だけを残す
-                fileList = fileList(fileList.bytes ~= 0,:);    % 空ファイルを削除
-                fileList = sortrows(fileList,'name','descend');     % 降順にソート
-                fileList.name = string(fileList.name);              % string型に変換
+            origDir = pwd;                              % カレントディレクトリを保持
+			cleanupObj = onCleanup(@() cd(origDir));    % 例外発生時も元に戻す
+			try
+				if ~isfolder(app.rootDir)
+					error("MATLAB:cd:NonExistentFolder","The folder does not exist.");   % 存在しない場合は従来エラーを再現
+				end
 
-                app.LogDropDown.Items = {};                         % ドロップダウンメニューを初期化
+				fileList = dir(fullfile(app.rootDir,'*.csv'));          % cdを使わずにcsvファイル一覧を取得
+				fileList = struct2table(fileList);                      % table型に変換
+				fileList.name = convertCharsToStrings(fileList.name);   % String型に変換
+				fileList.name = erase(fileList.name,lettersPattern | characterListPattern("."));   % 文字と.を削除
+				fileList.name = str2double(fileList.name);              % double型に変換
+				idx = isnan(fileList.name);     % NaNを含む行を検索
+				fileList = fileList(~idx,:);    % NaNを含まない行だけを残す
+				fileList = fileList(fileList.bytes ~= 0,:);    % 空ファイルを削除
+				fileList = sortrows(fileList,'name','descend');     % 降順にソート
+				fileList.name = string(fileList.name);              % string型に変換
 
-                app.LogDropDown.Items = append(fileList.name,"    ",string(round(fileList.bytes/1000,0)),"KB" );          % ドロップダウンメニューに追加
-    
-                app.Lamp.Color = "green";   % ステータスランプ緑
-                app.TextArea.Value = "";    % ステータスクリア
-            catch ME
-                app.Lamp.Color = "red";     % ステータスランプ赤
-                app.TextArea.Value = {ME.identifier,ME.message};   % エラー表示
-                if (strcmp(ME.identifier,'MATLAB:cd:NonExistentFolder'))
-                    % 指定フォルダが見つからない
-                    app.FolderButton.Text = "not found folder";
-                end
-                if (strcmp(ME.identifier,'MATLAB:string:MustBeCharCellArrayOrString'))
-                    % 指定フォルダにcsvファイルが無い
-                    app.LogDropDown.Items = "not found files";
-                end
-            end
+				app.LogDropDown.Items = {};                         % ドロップダウンメニューを初期化
+
+				app.LogDropDown.Items = append(fileList.name,"    ",string(round(fileList.bytes/1000,0)),"KB" );          % ドロップダウンメニューに追加
+	
+				app.Lamp.Color = "green";   % ステータスランプ緑
+				app.TextArea.Value = "";    % ステータスクリア
+			catch ME
+				app.Lamp.Color = "red";     % ステータスランプ赤
+				app.TextArea.Value = {ME.identifier,ME.message};   % エラー表示
+				if (strcmp(ME.identifier,'MATLAB:cd:NonExistentFolder'))
+					% 指定フォルダが見つからない
+					app.FolderButton.Text = "not found folder";
+				end
+				if (strcmp(ME.identifier,'MATLAB:string:MustBeCharCellArrayOrString'))
+					% 指定フォルダにcsvファイルが無い
+					app.LogDropDown.Items = "not found files";
+				end
+			end
         end
 
         % ログ変数一覧を取得
