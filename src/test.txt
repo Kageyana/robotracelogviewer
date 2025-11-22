@@ -103,58 +103,80 @@ classdef logAnalysis < matlab.apps.AppBase
 			%             app.angularVelocity = app.log.gyroVal_Z / 10 * -1;      % 角度速度配列[deg/s] 右旋回時にプラス
 
 			% テキストフィールドから換算式を取得
-			% 時間行列[s]
-			timeeq = split(app.timeEditField.Value);
-			try
-				app.time = app.log.(timeeq{1});
-				i = 2;
-				while i <= numel(timeeq)
-					if i + 1 > numel(timeeq)
-						error("logAnalysis:InvalidEquation","時間換算式の演算子と値の組み合わせが不足しています。");
-					end
-					operand = str2double(timeeq{i + 1});
-					if isnan(operand)
-						error("logAnalysis:InvalidEquation","時間換算式に数値以外が指定されています: %s", timeeq{i + 1});
-					end
-					% 演算子を判定して掛け算・割り算を実行
-					if timeeq(i) == "*"
-						app.time = app.time * operand;
-					elseif timeeq(i) == "/"
-						app.time = app.time / operand;
-					else
-						error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
-					end
-					i = i + 2;
-				end
-			catch ME
-				app.Lamp.Color = "red";
-				setTexttarea(app, {ME.identifier, ME.message});
-				return;
-			end
+                        % 時間行列[s]
+                        timeeq = split(app.timeEditField.Value);
+                        try
+                                app.time = app.log.(timeeq{1});
+                                i = 2;
+                                while i <= numel(timeeq)
+                                        if i + 1 > numel(timeeq)
+                                                error("logAnalysis:InvalidEquation","時間換算式の演算子と値の組み合わせが不足しています。");
+                                        end
+                                        operand = str2double(timeeq{i + 1});
+                                        if isnan(operand)
+                                                error("logAnalysis:InvalidEquation","時間換算式に数値以外が指定されています: %s", timeeq{i + 1});
+                                        end
+                                        % 演算子を判定して掛け算・割り算を実行
+                                        if timeeq(i) == "*"
+                                                app.time = app.time * operand;
+                                        elseif timeeq(i) == "/"
+                                                app.time = app.time / operand;
+                                        else
+                                                error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
+                                        end
+                                        i = i + 2;
+                                end
 
-			% 速度行列[mm/s]
-			velocityeq = split(app.velocityEditField.Value);
-			for i = 1:size(velocityeq,1)
-				if i == 1
-					app.velocity = app.log.(velocityeq{1});
-				elseif velocityeq(i) == "*"
-					app.velocity = app.velocity * str2double(velocityeq{i+1});
-				elseif velocityeq(i) == "/"
-					app.velocity = app.velocity / str2double(velocityeq{i+1});
-				end
-			end
+                                % 速度行列[mm/s] の換算式を検証しながら計算
+                                velocityeq = split(app.velocityEditField.Value);
+                                app.velocity = app.log.(velocityeq{1});
+                                i = 2;
+                                while i <= numel(velocityeq)
+                                        if i + 1 > numel(velocityeq)
+                                                error("logAnalysis:InvalidEquation","速度換算式の演算子と値の組み合わせが不足しています。");
+                                        end
+                                        velocityOperand = str2double(velocityeq{i + 1});
+                                        if isnan(velocityOperand)
+                                                error("logAnalysis:InvalidEquation","速度換算式に数値以外が指定されています: %s", velocityeq{i + 1});
+                                        end
+                                        % 速度換算式の演算子を判定して計算
+                                        if velocityeq(i) == "*"
+                                                app.velocity = app.velocity * velocityOperand;
+                                        elseif velocityeq(i) == "/"
+                                                app.velocity = app.velocity / velocityOperand;
+                                        else
+                                                error("logAnalysis:InvalidEquation","速度換算式に無効な演算子があります: %s", velocityeq{i});
+                                        end
+                                        i = i + 2;
+                                end
 
-			% 角度速度配列[deg/s] 右旋回時にプラス
-			angularVelocityeq = split(app.angularVelocityEditField.Value);
-			for i = 1:size(angularVelocityeq,1)
-				if i == 1
-					app.angularVelocity = app.log.(angularVelocityeq{1});
-				elseif angularVelocityeq(i) == "*"
-					app.angularVelocity = app.angularVelocity * str2double(angularVelocityeq{i+1});
-				elseif angularVelocityeq(i) == "/"
-					app.angularVelocity = app.angularVelocity / str2double(angularVelocityeq{i+1});
-				end
-			end
+                                % 角度速度配列[deg/s] の換算式を検証しながら計算（右旋回時にプラス）
+                                angularVelocityeq = split(app.angularVelocityEditField.Value);
+                                app.angularVelocity = app.log.(angularVelocityeq{1});
+                                i = 2;
+                                while i <= numel(angularVelocityeq)
+                                        if i + 1 > numel(angularVelocityeq)
+                                                error("logAnalysis:InvalidEquation","角速度換算式の演算子と値の組み合わせが不足しています。");
+                                        end
+                                        angularVelocityOperand = str2double(angularVelocityeq{i + 1});
+                                        if isnan(angularVelocityOperand)
+                                                error("logAnalysis:InvalidEquation","角速度換算式に数値以外が指定されています: %s", angularVelocityeq{i + 1});
+                                        end
+                                        % 角速度換算式の演算子を判定して計算
+                                        if angularVelocityeq(i) == "*"
+                                                app.angularVelocity = app.angularVelocity * angularVelocityOperand;
+                                        elseif angularVelocityeq(i) == "/"
+                                                app.angularVelocity = app.angularVelocity / angularVelocityOperand;
+                                        else
+                                                error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
+                                        end
+                                        i = i + 2;
+                                end
+                        catch ME
+                                app.Lamp.Color = "red";
+                                setTexttarea(app, {ME.identifier, ME.message});
+                                return;
+                        end
 
 			app.dt = app.time(2,1) - app.time(1,1);
 			
