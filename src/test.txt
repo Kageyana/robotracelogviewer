@@ -632,13 +632,15 @@ classdef logAnalysis < matlab.apps.AppBase
             if t > app.TimesSlider.Limits(2)
                 t = app.TimesSlider.Limits(2);
             end
-            app.TimesSlider.Value = t;      % スライダー位置の補正
-            t = seconds(t);                 % duration 配列に変換
+            % サンプル時刻にスナップして timetable 参照を安定化
+            [~,nearestIdx] = min(abs(seconds(app.course.Time) - t));
+            snapTime = app.course.Time(nearestIdx);
+            app.TimesSlider.Value = seconds(snapTime);		% スライダー位置の補正（サンプル時刻に揃える）
 
             % コース上に現在地をプロット
             delete(app.marker)          % 前回値を削除
             hold(app.UIAxisCourse, 'on');
-            app.marker = scatter(app.UIAxisCourse,app.course{t,'x'},app.course{t,'y'},"m",'filled');
+            app.marker = scatter(app.UIAxisCourse,app.course{snapTime,'x'},app.course{snapTime,'y'},"m",'filled');
             hold(app.UIAxisCourse, 'off');
             % 変数グラフ上にプロット
             setXlines(app,app.TimesSlider.Value);
