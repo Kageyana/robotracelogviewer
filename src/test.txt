@@ -92,6 +92,7 @@ classdef logAnalysis < matlab.apps.AppBase
         rotate = 0          % コースプロットの回転フラグ 1:90° CCW回転
 
         time            % 時間配列
+        dt              % 最初の単位時間
         velocity        % 速度配列
         angularVelocity % 角速度配列
         pulse = 60.074	% 1mmのロータリーエンコーダパルス
@@ -185,6 +186,8 @@ classdef logAnalysis < matlab.apps.AppBase
                     end
                     i = i + 2;
                 end
+
+                app.dt = app.time(2) - app.time(1);
 
 			catch ME
 				app.Lamp.Color = "red";	% 例外発生をランプで通知
@@ -392,9 +395,13 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
     
                 % スライダー範囲の設定
-                app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
-                app.TimesSlider.Value = app.time(1,1);      % スライダー位置初期化
-                
+                app.TimesSlider.Limits = [1 numel(app.time)];   % 時間配列のインデックスをスライダーの範囲に設定
+                Ticks = round(linspace(1,numel(app.time),17));  % インデックスを17等分する
+                app.TimesSlider.MajorTicks = Ticks;             % 主目盛りを設定
+                TicksLabelnum = app.time(Ticks');               % ラベルにする秒数を時間配列から取得
+                TicksLabelstr = num2str(TicksLabelnum);         % 秒数を文字列に変換
+                TicksLabel = cellstr(TicksLabelstr)';           % cell配列に変換
+                app.TimesSlider.MajorTickLabels = TicksLabel;   % ラベルを設定
     
                 % 変数初期化
                 app.kgyro = 1;
@@ -493,7 +500,8 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
 
                 plot(app.UIAxesAnalysis,app.time,varData) 
-                setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+                index = round(app.TimesSlider.Value);
+                setXlines(app,app.time(index)); %  X定数線を更新
                 
 
                 if strcmp(match,"On") == 1
@@ -554,7 +562,7 @@ classdef logAnalysis < matlab.apps.AppBase
             timeIndex = app.course.Time(Ip);        % クリック点での時間を取得
 
             setXlines(app,seconds(timeIndex));      % 定数線更新
-            app.TimesSlider.Value = seconds(timeIndex);  % スライドバー更新
+            app.TimesSlider.Value = Ip;  % スライドバー更新
 
             % コース上に現在地をプロット
             delete(app.marker)          % 前回値を削除
@@ -585,10 +593,11 @@ classdef logAnalysis < matlab.apps.AppBase
             end
 
             linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x')
-            setXlines(app,app.TimesSlider.Value);
+            index = round(app.TimesSlider.Value);
+            setXlines(app,app.time(index));
 
-            procData(app,"right");
-            procData(app,"left");
+            % procData(app,"right");
+            % procData(app,"left");
         end
     end
    
@@ -684,7 +693,14 @@ classdef logAnalysis < matlab.apps.AppBase
 		        end
         
 		        % スライダー範囲の設定
-		        app.TimesSlider.Limits = [app.time(1,1) app.time(end,1)];
+                app.TimesSlider.Limits = [1 numel(app.time)];   % 時間配列のインデックスをスライダーの範囲に設定
+                Ticks = round(linspace(1,numel(app.time),17));  % インデックスを17等分する
+                app.TimesSlider.MajorTicks = Ticks;             % 主目盛りを設定
+                TicksLabelnum = app.time(Ticks');               % ラベルにする秒数を時間配列から取得
+                TicksLabelstr = num2str(TicksLabelnum);         % 秒数を文字列に変換
+                TicksLabel = cellstr(TicksLabelstr)';           % cell配列に変換
+                app.TimesSlider.MajorTickLabels = TicksLabel;   % ラベルを設定
+
 		        % 変数プロットのx軸設定
 		        app.UIAxes1.XLim = [0 app.time(end,1)];
 		        app.UIAxes2.XLim = [0 app.time(end,1)];
@@ -755,16 +771,15 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Value changing function: TimesSlider
         function TimesSliderValueChanging(app, event)
-            changingValue = event.Value;
-
-            t = round(changingValue,2) + (app.time(1,1)); % スライダ数値補正 小数点3桁目を揃える
-            if t > app.TimesSlider.Limits(2)
-                t = app.TimesSlider.Limits(2);
+            if isprop(event,"Value")
+                changingValue = event.Value;
+            else
+                changingValue = event;
             end
-            % サンプル時刻にスナップして timetable 参照を安定化
-            [~,nearestIdx] = min(abs(seconds(app.course.Time) - t));
-            snapTime = app.course.Time(nearestIdx);
-            app.TimesSlider.Value = seconds(snapTime);		% スライダー位置の補正（サンプル時刻に揃える）
+            
+            index = round(changingValue);
+            t = min(seconds(app.time(index)));
+            snapTime = app.course.Time(t);
 
             % コース上に現在地をプロット
             delete(app.marker)          % 前回値を削除
@@ -772,7 +787,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.marker = scatter(app.UIAxisCourse,app.course{snapTime,'x'},app.course{snapTime,'y'},"m",'filled');
             hold(app.UIAxisCourse, 'off');
             % 変数グラフ上にプロット
-            setXlines(app,app.TimesSlider.Value);
+            setXlines(app,app.time(index));
             
         end
 
@@ -780,7 +795,8 @@ classdef logAnalysis < matlab.apps.AppBase
         function Data1DropDownValueChanged(app, event)
             value = app.Data1DropDown.Value;
             plot(app.UIAxes1,app.time,app.log.(value))
-            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            index = round(app.TimesSlider.Value);
+            setXlines(app,app.time(index)); %  X定数線を更新
             title(app.UIAxes1, value)   % タイトル
             app.UIAxes1.Title.Visible = "off";
         end
@@ -789,7 +805,8 @@ classdef logAnalysis < matlab.apps.AppBase
         function Data2DropDownValueChanged(app, event)
             value = app.Data2DropDown.Value;
             plot(app.UIAxes2,app.time,app.log.(value))
-            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            index = round(app.TimesSlider.Value);
+            setXlines(app,app.time(index)); %  X定数線を更新
             title(app.UIAxes2, value)   % タイトル
             app.UIAxes2.Title.Visible = "off";
         end
@@ -798,7 +815,8 @@ classdef logAnalysis < matlab.apps.AppBase
         function Data3DropDownValueChanged(app, event)
             value = app.Data3DropDown.Value;
             plot(app.UIAxes3,app.time,app.log.(value))
-            setXlines(app,app.TimesSlider.Value); %  X定数線を更新
+            index = round(app.TimesSlider.Value);
+            setXlines(app,app.time(index)); %  X定数線を更新
             title(app.UIAxes3, value)   % タイトル
             app.UIAxes3.Title.Visible = "off";
         end
@@ -966,6 +984,19 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.csvFilePathEditer.Value = fileDir;
             end
         end
+
+        % Key press function: UIFigure
+        function UIFigureKeyPress(app, event)
+            value = app.TimesSlider.Value; % get the slider value
+	        key = event.Key; % get the pressed key value
+            if strcmp(key,'leftarrow')
+    	        value = value-1; % left value
+            elseif strcmp(key,'rightarrow')
+                value = value+1; % right value
+            end
+            app.TimesSlider.Value = value; % set the slider value
+	        TimesSliderValueChanging(app, value); % execute the slider callback
+        end
     end
 
     % Component initialization
@@ -982,6 +1013,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIFigure.Position = [100 100 1263 713];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
+            app.UIFigure.KeyPressFcn = createCallbackFcn(app, @UIFigureKeyPress, true);
 
             % Create UIAxisCourse
             app.UIAxisCourse = uiaxes(app.UIFigure);
