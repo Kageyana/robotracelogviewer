@@ -40,14 +40,15 @@ classdef logAnalysis < matlab.apps.AppBase
         DataDropDownLabel_2       matlab.ui.control.Label
         DataLabel                 matlab.ui.control.Label
         UIAxesAnalysis            matlab.ui.control.UIAxes
-        ShortcutTab               matlab.ui.container.Tab
-        plotSwitch                matlab.ui.control.Switch
-        plotSwitchLabel           matlab.ui.control.Label
-        windowSliderLabel         matlab.ui.control.Label
-        windowSlider              matlab.ui.control.Slider
+        ParameterTab              matlab.ui.container.Tab
+        TextArea_2                matlab.ui.control.TextArea
         consoleTab                matlab.ui.container.Tab
         TextArea                  matlab.ui.control.TextArea
         SettingTab                matlab.ui.container.Tab
+        ShortCutwindowLabel       matlab.ui.control.Label
+        ShortCutwindowSlider      matlab.ui.control.Slider
+        ShortCutplotSwitch        matlab.ui.control.Switch
+        ShortCutplotSwitchLabel   matlab.ui.control.Label
         SettingCSVfilepathLabel   matlab.ui.control.Label
         csvFilePathButton         matlab.ui.control.Button
         csvFilePathEditer         matlab.ui.control.EditField
@@ -99,6 +100,7 @@ classdef logAnalysis < matlab.apps.AppBase
         kgyro = 1       % 角度補正係数
         courseSize = [  -400    800;
                         -1000   1000]
+        parameter          % ログのヘッダー
     end
 
     % メソッド
@@ -114,9 +116,20 @@ classdef logAnalysis < matlab.apps.AppBase
 				% ログファイル読み込みと最低限の行数チェックを例外処理で保護
                 filePath = append(app.rootDir,'\\',filename,".csv");
 				app.log = readtable(filePath);		  % ログファイル読み込み
-                header = readcell(filePath,"Range","A1:AAAA1");       % ヘッダーを取得
+                header = readcell(filePath,"Range","A1:AAAA1");         % ヘッダーを取得
                 rowNum = size(app.log.Properties.VariableNames,2);      % 有効なヘッダ数を取得
                 app.log.Properties.VariableNames = header(1,1:rowNum);  %ヘッダを設定
+
+                % ヘッダに含まれるパラメータを取得
+                app.parameter = header(rowNum+1:end);
+                if isempty(app.parameter) == 0
+                    % パラメータがあるときはテキストエリアに書き込み
+                    app.TextArea_2.Value = app.parameter;
+                else
+                    % パラメータがないときはテキストエリアをクリア
+                    app.TextArea_2.Value = "";
+                end
+                
                 if height(app.log) < 2
                     error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
@@ -302,15 +315,15 @@ classdef logAnalysis < matlab.apps.AppBase
         function calcShortCutplot(app)
             try
                 % windowが1未満の場合は処理を中断
-                app.windowSlider.Value = round(app.windowSlider.Value);
-                if app.windowSlider.Value < 1
+                app.ShortCutwindowSlider.Value = round(app.ShortCutwindowSlider.Value);
+                if app.ShortCutwindowSlider.Value < 1
                     app.Lamp.Color = "red";     % ステータスランプ赤
                     setTexttarea(app, {"windowの値が1未満です", "1以上に設定してください"});
                     return;
                 end
                 % 座標算出
-                x = movmean(app.course.x,app.windowSlider.Value);
-                y = movmean(app.course.y,app.windowSlider.Value);
+                x = movmean(app.course.x,app.ShortCutwindowSlider.Value);
+                y = movmean(app.course.y,app.ShortCutwindowSlider.Value);
                 % timetable変数作成
                 app.shortCutCourse = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
             catch ME
@@ -344,7 +357,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
 
                 % ショートカット軌跡表示ボタンがONの時
-                if app.plotSwitch.Value == "On"
+                if app.ShortCutplotSwitch.Value == "On"
                     hold(app.UIAxisCourse, 'on');
                     scatter(app.UIAxisCourse,app.shortCutCourse.x,app.shortCutCourse.y);
                     hold(app.UIAxisCourse, 'off');
@@ -409,8 +422,8 @@ classdef logAnalysis < matlab.apps.AppBase
     
                 % 変数初期化
                 % app.kgyro = 1;
-                app.CourseajustgyroKnob.Value = 1;
-                app.Spinner.Value = 1;
+                % app.CourseajustgyroKnob.Value = 1;
+                % app.Spinner.Value = 1;
     
                 % コース座標計算
                 calcCourseplot(app);    % コース座標計算
@@ -451,8 +464,8 @@ classdef logAnalysis < matlab.apps.AppBase
 				"detrendLeft", string(app.detrendLSwitch.Value);
 				"detrendRight", string(app.detrendRSwitch.Value);
 				"ylimMatch", string(app.ylimmatchSwitch.Value);
-				"plotSwitch", string(app.plotSwitch.Value);
-				"windowSlider", string(app.windowSlider.Value)
+				"plotSwitch", string(app.ShortCutplotSwitch.Value);
+				"windowSlider", string(app.ShortCutwindowSlider.Value)
 			};
 			settingsTable = cell2table(settings,"VariableNames",{'key','value'}); % table作成
             folderPath = "";
@@ -606,6 +619,10 @@ classdef logAnalysis < matlab.apps.AppBase
             % procData(app,"right");
             % procData(app,"left");
         end
+        
+        function getParameter(app)
+            
+        end
     end
    
 
@@ -634,7 +651,7 @@ classdef logAnalysis < matlab.apps.AppBase
                     
                     % 解析・ショートカット設定をCSVから復元
                     app.SwitchDirection.Value = settingsMap("switchDirection");
-                    app.plotSwitch.Value = settingsMap("plotSwitch");
+                    app.ShortCutplotSwitch.Value = settingsMap("plotSwitch");
                     app.ylimmatchSwitch.Value = settingsMap("ylimMatch");
                     app.normalizeLSwitch.Value = settingsMap("normalizeLeft");
                     app.normalizeRSwitch.Value = settingsMap("normalizeRight");
@@ -652,7 +669,7 @@ classdef logAnalysis < matlab.apps.AppBase
                     end
                     sliderWindow = str2double(settingsMap("windowSlider"));
                     if ~isnan(sliderWindow)
-                        app.windowSlider.Value = sliderWindow;
+                        app.ShortCutwindowSlider.Value = sliderWindow;
                     end
                     
                     % ログフォルダパスをCSVから復元
@@ -943,18 +960,18 @@ classdef logAnalysis < matlab.apps.AppBase
             plotVariableGraphs(app);
         end
 
-        % Value changed function: windowSlider
-        function windowSliderValueChanged(app, event)
+        % Value changed function: ShortCutwindowSlider
+        function ShortCutwindowSliderValueChanged(app, event)
             % windowSliderの値が1未満にならないよう補正
-            if app.windowSlider.Value < 1
-                app.windowSlider.Value = 1;
+            if app.ShortCutwindowSlider.Value < 1
+                app.ShortCutwindowSlider.Value = 1;
             end
             calcShortCutplot(app);
             plotCourse(app);
         end
 
-        % Value changed function: plotSwitch
-        function plotSwitchValueChanged(app, event)
+        % Value changed function: ShortCutplotSwitch
+        function ShortCutplotSwitchValueChanged(app, event)
             plotCourse(app);
         end
 
@@ -1281,33 +1298,13 @@ classdef logAnalysis < matlab.apps.AppBase
             app.ylimmatchSwitch.ValueChangedFcn = createCallbackFcn(app, @ylimmatchSwitchValueChanged, true);
             app.ylimmatchSwitch.Position = [272 528 20 45];
 
-            % Create ShortcutTab
-            app.ShortcutTab = uitab(app.TabGroup);
-            app.ShortcutTab.Title = 'Short cut';
+            % Create ParameterTab
+            app.ParameterTab = uitab(app.TabGroup);
+            app.ParameterTab.Title = 'Parameter';
 
-            % Create windowSlider
-            app.windowSlider = uislider(app.ShortcutTab);
-            app.windowSlider.Limits = [1 50];
-            app.windowSlider.ValueChangedFcn = createCallbackFcn(app, @windowSliderValueChanged, true);
-            app.windowSlider.Position = [211 366 150 3];
-            app.windowSlider.Value = 1;
-
-            % Create windowSliderLabel
-            app.windowSliderLabel = uilabel(app.ShortcutTab);
-            app.windowSliderLabel.HorizontalAlignment = 'right';
-            app.windowSliderLabel.Position = [144 357 45 22];
-            app.windowSliderLabel.Text = 'window';
-
-            % Create plotSwitchLabel
-            app.plotSwitchLabel = uilabel(app.ShortcutTab);
-            app.plotSwitchLabel.HorizontalAlignment = 'center';
-            app.plotSwitchLabel.Position = [270 472 25 22];
-            app.plotSwitchLabel.Text = 'plot';
-
-            % Create plotSwitch
-            app.plotSwitch = uiswitch(app.ShortcutTab, 'slider');
-            app.plotSwitch.ValueChangedFcn = createCallbackFcn(app, @plotSwitchValueChanged, true);
-            app.plotSwitch.Position = [259 509 45 20];
+            % Create TextArea_2
+            app.TextArea_2 = uitextarea(app.ParameterTab);
+            app.TextArea_2.Position = [1 1 589 689];
 
             % Create consoleTab
             app.consoleTab = uitab(app.TabGroup);
@@ -1385,20 +1382,20 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Spinner.Step = 0.001;
             app.Spinner.ValueChangingFcn = createCallbackFcn(app, @SpinnerValueChanging, true);
             app.Spinner.Limits = [0.9 1.4];
-            app.Spinner.Position = [67 210 85 22];
+            app.Spinner.Position = [42 235 85 22];
             app.Spinner.Value = 1;
 
             % Create CourseajustgyroKnobLabel
             app.CourseajustgyroKnobLabel = uilabel(app.SettingTab);
             app.CourseajustgyroKnobLabel.HorizontalAlignment = 'center';
-            app.CourseajustgyroKnobLabel.Position = [51 341 107 22];
+            app.CourseajustgyroKnobLabel.Position = [26 366 107 22];
             app.CourseajustgyroKnobLabel.Text = 'Course ajust (gyro)';
 
             % Create CourseajustgyroKnob
             app.CourseajustgyroKnob = uiknob(app.SettingTab, 'continuous');
             app.CourseajustgyroKnob.Limits = [0.9 1.4];
             app.CourseajustgyroKnob.ValueChangingFcn = createCallbackFcn(app, @CourseajustgyroKnobValueChanging, true);
-            app.CourseajustgyroKnob.Position = [75 260 60 60];
+            app.CourseajustgyroKnob.Position = [50 285 60 60];
             app.CourseajustgyroKnob.Value = 1;
 
             % Create SwitchDirection
@@ -1406,12 +1403,12 @@ classdef logAnalysis < matlab.apps.AppBase
             app.SwitchDirection.Items = {'CCW', 'CW'};
             app.SwitchDirection.Orientation = 'horizontal';
             app.SwitchDirection.ValueChangedFcn = createCallbackFcn(app, @SwitchDirectionValueChanged, true);
-            app.SwitchDirection.Position = [243 260 45 20];
+            app.SwitchDirection.Position = [204 330 45 20];
             app.SwitchDirection.Value = 'CW';
 
             % Create Label
             app.Label = uilabel(app.SettingTab);
-            app.Label.Position = [213 293 94 22];
+            app.Label.Position = [174 363 94 22];
             app.Label.Text = 'Course Direction';
 
             % Create csvFilePathEditer
@@ -1430,6 +1427,30 @@ classdef logAnalysis < matlab.apps.AppBase
             app.SettingCSVfilepathLabel.FontSize = 18;
             app.SettingCSVfilepathLabel.Position = [13 654 171 23];
             app.SettingCSVfilepathLabel.Text = 'Setting CSV file path';
+
+            % Create ShortCutplotSwitchLabel
+            app.ShortCutplotSwitchLabel = uilabel(app.SettingTab);
+            app.ShortCutplotSwitchLabel.HorizontalAlignment = 'center';
+            app.ShortCutplotSwitchLabel.Position = [415 361 75 22];
+            app.ShortCutplotSwitchLabel.Text = 'ShortCut plot';
+
+            % Create ShortCutplotSwitch
+            app.ShortCutplotSwitch = uiswitch(app.SettingTab, 'slider');
+            app.ShortCutplotSwitch.ValueChangedFcn = createCallbackFcn(app, @ShortCutplotSwitchValueChanged, true);
+            app.ShortCutplotSwitch.Position = [429 330 45 20];
+
+            % Create ShortCutwindowSlider
+            app.ShortCutwindowSlider = uislider(app.SettingTab);
+            app.ShortCutwindowSlider.Limits = [1 50];
+            app.ShortCutwindowSlider.ValueChangedFcn = createCallbackFcn(app, @ShortCutwindowSliderValueChanged, true);
+            app.ShortCutwindowSlider.Position = [388 299 150 3];
+            app.ShortCutwindowSlider.Value = 1;
+
+            % Create ShortCutwindowLabel
+            app.ShortCutwindowLabel = uilabel(app.SettingTab);
+            app.ShortCutwindowLabel.HorizontalAlignment = 'right';
+            app.ShortCutwindowLabel.Position = [324 275 52 30];
+            app.ShortCutwindowLabel.Text = {'ShortCut'; 'window'};
 
             % Create Button_Rotate
             app.Button_Rotate = uibutton(app.UIFigure, 'push');
