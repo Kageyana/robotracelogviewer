@@ -112,7 +112,11 @@ classdef logAnalysis < matlab.apps.AppBase
 
 			try
 				% ログファイル読み込みと最低限の行数チェックを例外処理で保護
-				app.log = readtable(append(app.rootDir,'\\',filename,".csv"));		  % ログファイル読み込み
+                filePath = append(app.rootDir,'\\',filename,".csv");
+				app.log = readtable(filePath);		  % ログファイル読み込み
+                header = readcell(filePath,"Range","A1:AAAA1");       % ヘッダーを取得
+                rowNum = size(app.log.Properties.VariableNames,2);      % 有効なヘッダ数を取得
+                app.log.Properties.VariableNames = header(1,1:rowNum);  %ヘッダを設定
                 if height(app.log) < 2
                     error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
@@ -404,7 +408,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.TimesSlider.MajorTickLabels = TicksLabel;   % ラベルを設定
     
                 % 変数初期化
-                app.kgyro = 1;
+                % app.kgyro = 1;
                 app.CourseajustgyroKnob.Value = 1;
                 app.Spinner.Value = 1;
     
@@ -416,6 +420,10 @@ classdef logAnalysis < matlab.apps.AppBase
     
                 % 変数プロット
                 plotVariableGraphs(app);
+
+                % 変数解析プロット
+                procData(app,"left");
+                procData(app,"right");
             end
         end
         
@@ -503,21 +511,20 @@ classdef logAnalysis < matlab.apps.AppBase
                 index = round(app.TimesSlider.Value);
                 setXlines(app,app.time(index)); %  X定数線を更新
                 
-
-                if strcmp(match,"On") == 1
+                varNameL = app.DataAnalysisLDropDown.Value;  % 左側変数名取得
+                varNameR = app.DataAnalysisRDropDown.Value;  % 右側変数名取得
+                if strcmp(match,"On") == 1 && strcmp(varNameL,"none") == 0 && strcmp(varNameR,"none") == 0
+                    % 片方がnoneのときはY軸を揃えない
                     % Y軸の範囲設定を左右で一致させる
-
-                    % Y軸範囲の上限、下限を取得
-                    yyaxis(app.UIAxesAnalysis,"left")
-                    ylim = app.UIAxesAnalysis.YLim;
-                    yyaxis(app.UIAxesAnalysis,"right")
-                    ylim = [ylim app.UIAxesAnalysis.YLim];
+                    varDataL = app.log.(varNameL); % 左側ログデータを取得
+                    varDataR = app.log.(varNameR); % 右側ログデータを取得
+                    varData = [varDataL varDataR]; % Y軸範囲を取得
 
                     % 上限を最大値、下限を最小値にする
                     yyaxis(app.UIAxesAnalysis,"left")
-                    app.UIAxesAnalysis.YLim = [min(ylim) max(ylim)];
+                    app.UIAxesAnalysis.YLim = [min(min(varData)) max(max(varData))];
                     yyaxis(app.UIAxesAnalysis,"right")
-                    app.UIAxesAnalysis.YLim = [min(ylim) max(ylim)];
+                    app.UIAxesAnalysis.YLim = [min(min(varData)) max(max(varData))];
                 else
                     % Y軸範囲をAuto変更にする
                     yyaxis(app.UIAxesAnalysis,"left")
@@ -737,6 +744,10 @@ classdef logAnalysis < matlab.apps.AppBase
         
 		        % 変数プロット
 		        plotVariableGraphs(app);
+
+                % 変数解析プロット
+                procData(app,"left");
+                procData(app,"right");
         
 		        % 単位変更
                 if app.radsCheckBox.Value == 0
