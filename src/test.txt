@@ -534,10 +534,24 @@ classdef logAnalysis < matlab.apps.AppBase
                     varData = [varDataL varDataR]; % Y軸範囲を取得
 
                     % 上限を最大値、下限を最小値にする
+                    limmin = min(min(varData));
+                    limmax = max(max(varData));
+
+                    if limmin >= 0
+                        limmin = limmin * 0.9;
+                    else
+                        limmin = limmin * 1.1;
+                    end
+
+                    if limmax >= 0
+                        limmax = limmax * 1.1;
+                    else
+                        limmax = limmax * 0.9;
+                    end
                     yyaxis(app.UIAxesAnalysis,"left")
-                    app.UIAxesAnalysis.YLim = [min(min(varData))*1.1 max(max(varData))*1.1];
+                    app.UIAxesAnalysis.YLim = [limmin limmax];
                     yyaxis(app.UIAxesAnalysis,"right")
-                    app.UIAxesAnalysis.YLim = [min(min(varData))*1.1 max(max(varData))*1.1];
+                    app.UIAxesAnalysis.YLim = [limmin limmax];
                 else
                     % Y軸範囲をAuto変更にする
                     yyaxis(app.UIAxesAnalysis,"left")
