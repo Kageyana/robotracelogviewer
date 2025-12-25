@@ -535,9 +535,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
                     % 上限を最大値、下限を最小値にする
                     yyaxis(app.UIAxesAnalysis,"left")
-                    app.UIAxesAnalysis.YLim = [min(min(varData)) max(max(varData))];
+                    app.UIAxesAnalysis.YLim = [min(min(varData))*1.1 max(max(varData))*1.1];
                     yyaxis(app.UIAxesAnalysis,"right")
-                    app.UIAxesAnalysis.YLim = [min(min(varData)) max(max(varData))];
+                    app.UIAxesAnalysis.YLim = [min(min(varData))*1.1 max(max(varData))*1.1];
                 else
                     % Y軸範囲をAuto変更にする
                     yyaxis(app.UIAxesAnalysis,"left")
