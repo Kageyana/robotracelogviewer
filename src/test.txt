@@ -45,6 +45,7 @@ classdef logAnalysis < matlab.apps.AppBase
         consoleTab                matlab.ui.container.Tab
         TextArea                  matlab.ui.control.TextArea
         SettingTab                matlab.ui.container.Tab
+        diffCheckBox              matlab.ui.control.CheckBox
         ShortCutwindowLabel       matlab.ui.control.Label
         ShortCutwindowSlider      matlab.ui.control.Slider
         ShortCutplotSwitch        matlab.ui.control.Switch
@@ -156,11 +157,20 @@ classdef logAnalysis < matlab.apps.AppBase
 						error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
 					end
 					i = i + 2;
-				end
+                end
+                app.dt = diff(app.time);
+                app.dt = [app.dt;app.dt(end)];
 
 				% 速度行列[mm/s] の換算式を検証しながら計算
 				velocityeq = split(app.velocityEditField.Value);
 				app.velocity = app.log.(velocityeq{1});
+                if app.diffCheckBox.Value == 1
+                    m = diff(app.velocity);
+                    n = [m;m(end)];
+                    o = n ./ app.dt;
+
+                    app.velocity = o;
+                end
 				i = 2;
 				while i <= numel(velocityeq)
 					if i + 1 > numel(velocityeq)
@@ -203,8 +213,6 @@ classdef logAnalysis < matlab.apps.AppBase
                     end
                     i = i + 2;
                 end
-
-                app.dt = app.time(2) - app.time(1);
 
 			catch ME
 				app.Lamp.Color = "red";	% 例外発生をランプで通知
@@ -1465,6 +1473,11 @@ classdef logAnalysis < matlab.apps.AppBase
             app.ShortCutwindowLabel.HorizontalAlignment = 'right';
             app.ShortCutwindowLabel.Position = [324 275 52 30];
             app.ShortCutwindowLabel.Text = {'ShortCut'; 'window'};
+
+            % Create diffCheckBox
+            app.diffCheckBox = uicheckbox(app.SettingTab);
+            app.diffCheckBox.Text = 'diff';
+            app.diffCheckBox.Position = [522 502 38 22];
 
             % Create Button_Rotate
             app.Button_Rotate = uibutton(app.UIFigure, 'push');
