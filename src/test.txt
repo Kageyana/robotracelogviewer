@@ -109,7 +109,7 @@ classdef logAnalysis < matlab.apps.AppBase
         dt              % 最初の単位時間
         velocity        % 速度配列
         angularVelocity % 角速度配列
-        pulse = 60.074	% 1mmのロータリーエンコーダパルス
+        pulse = 58.019	% 1mmのロータリーエンコーダパルス
         kgyro = 1       % 角度補正係数
         courseSize = [  -400    800;
                         -1000   1000]
@@ -129,7 +129,11 @@ classdef logAnalysis < matlab.apps.AppBase
                     error("logAnalysis:NoLogFiles","読み込み可能なログファイルがありません。");
                 end
                 filePath = fullfile(app.rootDir,app.LogDropDown.Value);
-				logData = readtable(filePath);		  % ログファイル読み込み
+                % 自動推定で異常行がヘッダ扱いにならないよう開始行を固定する
+                importOptions = detectImportOptions(filePath, ...
+                    'VariableNamesLine',2,'VariableNamingRule','preserve');
+                importOptions.DataLines = [3 Inf];
+                logData = readtable(filePath,importOptions);
                 meta = readcell(filePath,"Range","A1:AAAA1");         % パラメータを取得
                 colum = readcell(filePath,"Range","A2:AAAA2");         % 列名を取得 
                 rowNum = size(logData.Properties.VariableNames,2);      % 有効なヘッダ数を取得
@@ -142,84 +146,27 @@ classdef logAnalysis < matlab.apps.AppBase
                     error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
 
-                % テキストフィールドから換算式を取得
-				% 時間行列[s]
-				timeeq = split(app.timeEditField.Value);
-				timeData = logData.(timeeq{1});
-				i = 2;
-				while i <= numel(timeeq)
-					if i + 1 > numel(timeeq)
-						error("logAnalysis:InvalidEquation","時間換算式の演算子と値の組み合わせが不足しています。");
-					end
-					operand = str2double(timeeq{i + 1});
-					if isnan(operand)
-						error("logAnalysis:InvalidEquation","時間換算式に数値以外が指定されています: %s", timeeq{i + 1});
-					end
-					% 演算子を判定して掛け算・割り算を実行
-					if timeeq(i) == "*"
-						timeData = timeData * operand;
-					elseif timeeq(i) == "/"
-						timeData = timeData / operand;
-					else
-						error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
-					end
-					i = i + 2;
+                % 時間[s]は有限・非負で、各ログ行で必ず増加すること
+                timeData = evaluateLogEquation(app,logData,app.timeEditField.Value,"時間");
+                intervals = diff(timeData);
+                if any(timeData < 0) || any(~isfinite(intervals)) || any(intervals <= 0)
+                    error("logAnalysis:InvalidTime", ...
+                        "時間は非負かつ単調増加が必要です。重複・逆行・不正な時間間隔を確認してください。");
                 end
-                dtData = diff(timeData);
-                dtData = [dtData;dtData(end)];
+                dtData = [intervals;intervals(end)];
 
-				% 速度行列[mm/s] の換算式を検証しながら計算
-				velocityeq = split(app.velocityEditField.Value);
-				velocityData = logData.(velocityeq{1});
-                if app.diffCheckBox.Value == 1
-                    m = diff(velocityData);
-                    n = [m;m(end)];
-                    o = n ./ dtData;
-
-                    velocityData = o;
+                % 速度[mm/s]。diff時は換算後の値を時間間隔で微分する
+                velocityData = evaluateLogEquation(app,logData,app.velocityEditField.Value,"速度");
+                if app.diffCheckBox.Value
+                    delta = diff(velocityData);
+                    velocityData = [delta;delta(end)] ./ dtData;
+                    if any(~isfinite(velocityData))
+                        error("logAnalysis:InvalidVelocity","速度の差分計算結果にInfまたはNaNがあります。");
+                    end
                 end
-				i = 2;
-				while i <= numel(velocityeq)
-					if i + 1 > numel(velocityeq)
-						error("logAnalysis:InvalidEquation","速度換算式の演算子と値の組み合わせが不足しています。");
-					end
-					velocityOperand = str2double(velocityeq{i + 1});
-					if isnan(velocityOperand)
-						error("logAnalysis:InvalidEquation","速度換算式に数値以外が指定されています: %s", velocityeq{i + 1});
-					end
-					% 速度換算式の演算子を判定して計算
-					if velocityeq(i) == "*"
-						velocityData = velocityData * velocityOperand;
-					elseif velocityeq(i) == "/"
-						velocityData = velocityData / velocityOperand;
-					else
-						error("logAnalysis:InvalidEquation","速度換算式に無効な演算子があります: %s", velocityeq{i});
-					end
-					i = i + 2;
-				end
 
-				% 角度速度配列[deg/s] の換算式を検証しながら計算（右旋回時にプラス）
-				angularVelocityeq = split(app.angularVelocityEditField.Value);
-				angularVelocityData = logData.(angularVelocityeq{1});
-				i = 2;
-                while i <= numel(angularVelocityeq)
-                    if i + 1 > numel(angularVelocityeq)
-                        error("logAnalysis:InvalidEquation","角速度換算式の演算子と値の組み合わせが不足しています。");
-                    end
-                    angularVelocityOperand = str2double(angularVelocityeq{i + 1});
-                    if isnan(angularVelocityOperand)
-                        error("logAnalysis:InvalidEquation","角速度換算式に数値以外が指定されています: %s", angularVelocityeq{i + 1});
-                    end
-                    % 角速度換算式の演算子を判定して計算
-                    if angularVelocityeq(i) == "*"
-                        angularVelocityData = angularVelocityData * angularVelocityOperand;
-                    elseif angularVelocityeq(i) == "/"
-                        angularVelocityData = angularVelocityData / angularVelocityOperand;
-                    else
-                        error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
-                    end
-                    i = i + 2;
-                end
+                % 角速度は単位チェックボックスで指定したdeg/sまたはrad/s
+                angularVelocityData = evaluateLogEquation(app,logData,app.angularVelocityEditField.Value,"角速度");
                 if isempty(parameterData)
                     app.TextArea_2.Value = "";
                 else
@@ -249,6 +196,55 @@ classdef logAnalysis < matlab.apps.AppBase
         end
         
 
+        % ログ列と定数の乗除算からなる換算式を検証・計算する
+        % 引数 logData: 読込ログ、equation: 列名に*または/と数値を続ける式
+        %      label: エラー表示用の項目名
+        % 戻り値 data: 有限な実数の列ベクトル（double）
+        function data = evaluateLogEquation(app,logData,equation,label)
+            % 空白なし・複数空白・タブも受け付け、evalは使用しない
+            equation = char(string(equation));
+            tokens = regexp(strtrim(strrep(strrep(equation,'*',' * '),'/',' / ')), ...
+                '\S+','match');
+            if isempty(tokens) || mod(numel(tokens),2) ~= 1
+                error("logAnalysis:InvalidEquation", ...
+                    "%s換算式は「列名 * 数値 / 数値」の形式で指定してください。",label);
+            end
+            column = tokens{1};
+            if ~ismember(column,logData.Properties.VariableNames)
+                error("logAnalysis:MissingColumn","%s換算式の列がありません: %s",label,column);
+            end
+            data = logData.(column);
+            if ~isnumeric(data) || ~isreal(data) || ~isvector(data) || ...
+                    numel(data) ~= height(logData) || any(~isfinite(data(:)))
+                error("logAnalysis:InvalidColumn", ...
+                    "%s換算式の列は、各行に有限な実数が必要です: %s",label,column);
+            end
+            data = double(data(:));
+            for tokenIndex = 2:2:numel(tokens)
+                operator = tokens{tokenIndex};
+                operandText = tokens{tokenIndex+1};
+                numericPattern = '^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$';
+                operand = str2double(operandText);
+                if isempty(regexp(operandText,numericPattern,'once')) || ...
+                        ~isreal(operand) || ~isfinite(operand)
+                    error("logAnalysis:InvalidEquation", ...
+                        "%s換算式には有限な実数を指定してください: %s",label,operandText);
+                end
+                if strcmp(operator,'*')
+                    data = data .* operand;
+                elseif strcmp(operator,'/')
+                    if operand == 0
+                        error("logAnalysis:InvalidEquation","%s換算式でゼロ除算はできません。",label);
+                    end
+                    data = data ./ operand;
+                else
+                    error("logAnalysis:InvalidEquation","%s換算式の演算子が不正です: %s",label,operator);
+                end
+                if any(~isfinite(data))
+                    error("logAnalysis:InvalidEquation","%s換算結果にInfまたはNaNがあります。",label);
+                end
+            end
+        end
         % ログファイル一覧の取得
         function isSuccess = getLogfiles(app)
             isSuccess = false;
@@ -1501,7 +1497,7 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create velocityEditField
             app.velocityEditField = uieditfield(app.SettingTab, 'text');
             app.velocityEditField.Position = [176 502 326 22];
-            app.velocityEditField.Value = 'encCurrentN / 60.074 * 1000';
+            app.velocityEditField.Value = 'encCurrentCorr_p / 58.019 * 1000';
 
             % Create angularVelocitydegsLabel
             app.angularVelocitydegsLabel = uilabel(app.SettingTab);
@@ -1512,7 +1508,7 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create angularVelocityEditField
             app.angularVelocityEditField = uieditfield(app.SettingTab, 'text');
             app.angularVelocityEditField.Position = [176 472 326 22];
-            app.angularVelocityEditField.Value = 'gyroVal_Z / 10000 * -1';
+            app.angularVelocityEditField.Value = 'gyroVal_Z';
 
             % Create velocitymmsLabel_2
             app.velocitymmsLabel_2 = uilabel(app.SettingTab);
@@ -1537,7 +1533,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.radsCheckBox.ValueChangedFcn = createCallbackFcn(app, @radsCheckBoxValueChanged, true);
             app.radsCheckBox.Text = '[rad/s]';
             app.radsCheckBox.Position = [521 472 55 22];
-            app.radsCheckBox.Value = true;
+            app.radsCheckBox.Value = false;
 
             % Create SwitchLabel
             app.SwitchLabel = uilabel(app.SettingTab);
