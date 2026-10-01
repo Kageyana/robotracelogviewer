@@ -45,6 +45,15 @@ classdef logAnalysis < matlab.apps.AppBase
         consoleTab                matlab.ui.container.Tab
         TextArea                  matlab.ui.control.TextArea
         SettingTab                matlab.ui.container.Tab
+        Plotflag3DropDown         matlab.ui.control.DropDown
+        Plotflag3DropDownLabel    matlab.ui.control.Label
+        Plotflag3enableCheckBox   matlab.ui.control.CheckBox
+        Plotflag2DropDown         matlab.ui.control.DropDown
+        Plotflag2DropDownLabel    matlab.ui.control.Label
+        Plotflag2enableCheckBox   matlab.ui.control.CheckBox
+        Plotflag1DropDown         matlab.ui.control.DropDown
+        PlotflagLabel             matlab.ui.control.Label
+        Plotflag1enableCheckBox   matlab.ui.control.CheckBox
         diffCheckBox              matlab.ui.control.CheckBox
         ShortCutwindowLabel       matlab.ui.control.Label
         ShortCutwindowSlider      matlab.ui.control.Slider
@@ -88,6 +97,9 @@ classdef logAnalysis < matlab.apps.AppBase
         course              % 走行軌跡の座標配列
         shortCutCourse      % ショートカットの走行軌跡座標配列
         marker              % 現在地のプロット
+        flag1               % フラグをコースにプロット
+        flag2               % フラグをコースにプロット
+        flag3               % フラグをコースにプロット
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
         courseColorbar      % コース描画用カラーバーハンドル
         expand              % コースプロット最大化フラグ 1:最大
@@ -117,12 +129,13 @@ classdef logAnalysis < matlab.apps.AppBase
 				% ログファイル読み込みと最低限の行数チェックを例外処理で保護
                 filePath = append(app.rootDir,'\\',filename,".csv");
 				app.log = readtable(filePath);		  % ログファイル読み込み
-                header = readcell(filePath,"Range","A1:AAAA1");         % ヘッダーを取得
+                meta = readcell(filePath,"Range","A1:AAAA1");         % パラメータを取得
+                colum = readcell(filePath,"Range","A2:AAAA2");         % 列名を取得 
                 rowNum = size(app.log.Properties.VariableNames,2);      % 有効なヘッダ数を取得
-                app.log.Properties.VariableNames = header(1,1:rowNum);  %ヘッダを設定
+                app.log.Properties.VariableNames = colum(1,1:rowNum);  %ヘッダを設定
 
                 % ヘッダに含まれるパラメータを取得
-                app.parameter = header(rowNum+1:end);
+                app.parameter = meta;
                 if isempty(app.parameter) == 0
                     % パラメータがあるときはテキストエリアに書き込み
                     app.TextArea_2.Value = app.parameter;
@@ -281,6 +294,9 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Data1DropDown.Items = valnames;
             app.Data2DropDown.Items = valnames;
             app.Data3DropDown.Items = valnames;
+            app.Plotflag1DropDown.Items = valnames;
+            app.Plotflag2DropDown.Items = valnames;
+            app.Plotflag3DropDown.Items = valnames;
             app.DataAnalysisLDropDown.Items = [{'none'} valnames];
             app.DataAnalysisRDropDown.Items = [{'none'} valnames];
         end
@@ -400,11 +416,16 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.rootDir = uigetdir;
             end
             if app.rootDir ~= 0
+                nowLognum = app.LogDropDown.Value;
+
                 if max(strcmp(EventName,"ButtonPushed")) == 1
                     getLogfiles(app);   % ログファイル一覧を取得
                 end
+                app.LogDropDown.Value = nowLognum;
                 getLogdata(app);    % ログデータを取得する
                 getLogvalues(app);  % ログ変数一覧を取得
+
+                
     
                 % プロット初期化
                 cla(app.UIAxisCourse)
@@ -445,6 +466,9 @@ classdef logAnalysis < matlab.apps.AppBase
                 % 変数解析プロット
                 procData(app,"left");
                 procData(app,"right");
+
+                % 選択フラグのプロット
+                plotFlagPoint(app);
             end
         end
         
@@ -644,6 +668,53 @@ classdef logAnalysis < matlab.apps.AppBase
         
         function getParameter(app)
             
+        end
+        
+        function plotFlagPoint(app)
+            enable1 = app.Plotflag1enableCheckBox.Value;
+            enable2 = app.Plotflag2enableCheckBox.Value;
+            enable3 = app.Plotflag3enableCheckBox.Value;
+            if enable1
+                % コース上に現在地をプロット
+                delete(app.flag1)          % 前回値を削除
+                hold(app.UIAxisCourse, 'on');
+                raise = app.log.(app.Plotflag1DropDown.Value) > 0;
+                snapTime = app.course.Time(raise);
+                flag1x = app.course{snapTime,'x'};
+                flag1y = app.course{snapTime,'y'};
+                app.flag1 = scatter(app.UIAxisCourse,flag1x,flag1y,"red",'filled');
+                hold(app.UIAxisCourse, 'off');
+            else
+                delete(app.flag1)          % 前回値を削除
+            end
+
+            if enable2
+                % コース上に現在地をプロット
+                delete(app.flag2)          % 前回値を削除
+                hold(app.UIAxisCourse, 'on');
+                raise = app.log.(app.Plotflag2DropDown.Value) > 0;
+                snapTime = app.course.Time(raise);
+                flag2x = app.course{snapTime,'x'};
+                flag2y = app.course{snapTime,'y'};
+                app.flag2 = scatter(app.UIAxisCourse,flag2x,flag2y,"green",'filled');
+                hold(app.UIAxisCourse, 'off');
+            else
+                delete(app.flag2)          % 前回値を削除
+            end
+
+            if enable3
+                % コース上に現在地をプロット
+                delete(app.flag3)          % 前回値を削除
+                hold(app.UIAxisCourse, 'on');
+                raise = app.log.(app.Plotflag3DropDown.Value) > 0;
+                snapTime = app.course.Time(raise);
+                flag3x = app.course{snapTime,'x'};
+                flag3y = app.course{snapTime,'y'};
+                app.flag3 = scatter(app.UIAxisCourse,flag3x,flag3y,"blue",'filled');
+                hold(app.UIAxisCourse, 'off');
+            else
+                delete(app.flag3)          % 前回値を削除
+            end
         end
     end
    
@@ -1046,6 +1117,36 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             app.TimesSlider.Value = value; % set the slider value
 	        TimesSliderValueChanging(app, value); % execute the slider callback
+        end
+
+        % Value changed function: Plotflag1enableCheckBox
+        function Plotflag1enableCheckBoxValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
+        end
+
+        % Value changed function: Plotflag2enableCheckBox
+        function Plotflag2enableCheckBoxValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
+        end
+
+        % Value changed function: Plotflag3enableCheckBox
+        function Plotflag3enableCheckBoxValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
+        end
+
+        % Value changed function: Plotflag1DropDown
+        function Plotflag1DropDownValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
+        end
+
+        % Value changed function: Plotflag2DropDown
+        function Plotflag2DropDownValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
+        end
+
+        % Value changed function: Plotflag3DropDown
+        function Plotflag3DropDownValueChanged(app, event)
+            plotFlagPoint(app); %　フラグをプロット
         end
     end
 
@@ -1478,6 +1579,60 @@ classdef logAnalysis < matlab.apps.AppBase
             app.diffCheckBox = uicheckbox(app.SettingTab);
             app.diffCheckBox.Text = 'diff';
             app.diffCheckBox.Position = [522 502 38 22];
+
+            % Create Plotflag1enableCheckBox
+            app.Plotflag1enableCheckBox = uicheckbox(app.SettingTab);
+            app.Plotflag1enableCheckBox.ValueChangedFcn = createCallbackFcn(app, @Plotflag1enableCheckBoxValueChanged, true);
+            app.Plotflag1enableCheckBox.Text = 'enable';
+            app.Plotflag1enableCheckBox.Position = [233 154 58 22];
+
+            % Create PlotflagLabel
+            app.PlotflagLabel = uilabel(app.SettingTab);
+            app.PlotflagLabel.HorizontalAlignment = 'right';
+            app.PlotflagLabel.FontColor = [1 0 0];
+            app.PlotflagLabel.Position = [36 154 55 22];
+            app.PlotflagLabel.Text = 'Plot flag1';
+
+            % Create Plotflag1DropDown
+            app.Plotflag1DropDown = uidropdown(app.SettingTab);
+            app.Plotflag1DropDown.ValueChangedFcn = createCallbackFcn(app, @Plotflag1DropDownValueChanged, true);
+            app.Plotflag1DropDown.Position = [106 154 100 22];
+
+            % Create Plotflag2enableCheckBox
+            app.Plotflag2enableCheckBox = uicheckbox(app.SettingTab);
+            app.Plotflag2enableCheckBox.ValueChangedFcn = createCallbackFcn(app, @Plotflag2enableCheckBoxValueChanged, true);
+            app.Plotflag2enableCheckBox.Text = 'enable';
+            app.Plotflag2enableCheckBox.Position = [233 121 58 22];
+
+            % Create Plotflag2DropDownLabel
+            app.Plotflag2DropDownLabel = uilabel(app.SettingTab);
+            app.Plotflag2DropDownLabel.HorizontalAlignment = 'right';
+            app.Plotflag2DropDownLabel.FontColor = [0 1 0];
+            app.Plotflag2DropDownLabel.Position = [36 121 55 22];
+            app.Plotflag2DropDownLabel.Text = 'Plot flag2';
+
+            % Create Plotflag2DropDown
+            app.Plotflag2DropDown = uidropdown(app.SettingTab);
+            app.Plotflag2DropDown.ValueChangedFcn = createCallbackFcn(app, @Plotflag2DropDownValueChanged, true);
+            app.Plotflag2DropDown.Position = [106 121 100 22];
+
+            % Create Plotflag3enableCheckBox
+            app.Plotflag3enableCheckBox = uicheckbox(app.SettingTab);
+            app.Plotflag3enableCheckBox.ValueChangedFcn = createCallbackFcn(app, @Plotflag3enableCheckBoxValueChanged, true);
+            app.Plotflag3enableCheckBox.Text = 'enable';
+            app.Plotflag3enableCheckBox.Position = [233 88 58 22];
+
+            % Create Plotflag3DropDownLabel
+            app.Plotflag3DropDownLabel = uilabel(app.SettingTab);
+            app.Plotflag3DropDownLabel.HorizontalAlignment = 'right';
+            app.Plotflag3DropDownLabel.FontColor = [0 0 1];
+            app.Plotflag3DropDownLabel.Position = [36 88 55 22];
+            app.Plotflag3DropDownLabel.Text = 'Plot flag3';
+
+            % Create Plotflag3DropDown
+            app.Plotflag3DropDown = uidropdown(app.SettingTab);
+            app.Plotflag3DropDown.ValueChangedFcn = createCallbackFcn(app, @Plotflag3DropDownValueChanged, true);
+            app.Plotflag3DropDown.Position = [106 88 100 22];
 
             % Create Button_Rotate
             app.Button_Rotate = uibutton(app.UIFigure, 'push');
