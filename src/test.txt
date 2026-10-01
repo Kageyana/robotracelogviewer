@@ -103,7 +103,7 @@ classdef logAnalysis < matlab.apps.AppBase
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
         courseColorbar      % コース描画用カラーバーハンドル
         expand              % コースプロット最大化フラグ 1:最大
-        rotate = 0          % コースプロットの回転フラグ 1:90° CCW回転
+        rotate = 0          % コース全体の回転角度[deg]（rad入力時も度で保持）
 
         time            % 時間配列
         dt              % 最初の単位時間
@@ -328,22 +328,27 @@ classdef logAnalysis < matlab.apps.AppBase
         end
         
         % コース座標の計算
-        function calcCourseplot(app)
+        function isSuccess = calcCourseplot(app)
+            isSuccess = false;
+            if isempty(app.time) || isempty(app.velocity) || isempty(app.angularVelocity)
+                return;
+            end
             try
-                % 座標算出
-                degxy = cumtrapz(app.time, app.angularVelocity .* app.kgyro);  % 角度行列[deg/s] 角速度を積算
-                % コースプロット回転ボタンが押されたとき
-                degxy = degxy + app.rotate; % 全体を90°加算
-
-                if app.radsCheckBox.Value == true
-                    x = cumtrapz(app.time, ( app.velocity .* sin(degxy) ));
-                    y = cumtrapz(app.time, ( app.velocity .* cos(degxy) ));
+                % 換算式の出力単位に合わせて角度を積算する
+                angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
+                if app.radsCheckBox.Value
+                    angle = angle + deg2rad(app.rotate);
+                    x = cumtrapz(app.time,app.velocity .* sin(angle));
+                    y = cumtrapz(app.time,app.velocity .* cos(angle));
                 else
-                    x = cumtrapz(app.time, ( app.velocity .* sind(degxy) ));
-                    y = cumtrapz(app.time, ( app.velocity .* cosd(degxy) ));
+                    angle = angle + app.rotate;
+                    x = cumtrapz(app.time,app.velocity .* sind(angle));
+                    y = cumtrapz(app.time,app.velocity .* cosd(angle));
                 end
                 % timetable変数作成
                 app.course = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
+                app.shortCutCourse = []; % 基準軌跡が変わったら旧座標を無効にする
+                isSuccess = true;
             catch ME
                 app.Lamp.Color = "red";     % ステータスランプ赤
                 % エラー表示
@@ -355,7 +360,12 @@ classdef logAnalysis < matlab.apps.AppBase
         end
 
         % ショートカット軌跡座標の計算
-        function calcShortCutplot(app)
+        function isSuccess = calcShortCutplot(app)
+            isSuccess = false;
+            app.shortCutCourse = [];
+            if isempty(app.course)
+                return;
+            end
             try
                 % windowが1未満の場合は処理を中断
                 app.ShortCutwindowSlider.Value = round(app.ShortCutwindowSlider.Value);
@@ -368,7 +378,8 @@ classdef logAnalysis < matlab.apps.AppBase
                 x = movmean(app.course.x,app.ShortCutwindowSlider.Value);
                 y = movmean(app.course.y,app.ShortCutwindowSlider.Value);
                 % timetable変数作成
-                app.shortCutCourse = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
+                app.shortCutCourse = timetable(app.course.Time,x,y,app.course.velocity,'VariableNames',{'x','y','velocity'});
+                isSuccess = true;
             catch ME
                 app.Lamp.Color = "red";     % ステータスランプ赤
                 % エラー表示
@@ -381,6 +392,13 @@ classdef logAnalysis < matlab.apps.AppBase
        
         % コース描画
         function plotCourse(app)
+            if isempty(app.course)
+                return;
+            end
+            % 表示するたびに現在の基準軌跡とwindowから座標を更新する
+            if strcmp(app.ShortCutplotSwitch.Value,"On") && ~calcShortCutplot(app)
+                return;
+            end
             try
                 % 既存カラーバーがある場合は削除して重複表示を防止
                 if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
@@ -402,17 +420,20 @@ classdef logAnalysis < matlab.apps.AppBase
                 % ショートカット軌跡表示ボタンがONの時
                 if app.ShortCutplotSwitch.Value == "On"
                     hold(app.UIAxisCourse, 'on');
-                    scatter(app.UIAxisCourse,app.shortCutCourse.x,app.shortCutCourse.y);
+                    scatter(app.UIAxisCourse,app.shortCutCourse.x,app.shortCutCourse.y, ...
+                        'HitTest','off','PickableParts','none');
                     hold(app.UIAxisCourse, 'off');
                 end
                 
+                plotFlagPoint(app);
+                selectCourseIndex(app,app.TimesSlider.Value);
             catch ME
                 app.Lamp.Color = "red";     % ステータスランプ赤
                 % エラー表示
                 for num = 1:1:length(ME.stack)
                     % setTexttarea(app, {ME.stack(num,1).name,num2str(ME.stack(num,1).line)})
                 end
-                % setTexttarea(app, {ME.identifier,ME.message})
+                setTexttarea(app, {ME.identifier,ME.message});
             end
         end
 
@@ -1073,6 +1094,9 @@ classdef logAnalysis < matlab.apps.AppBase
             elseif value == 1
                 app.angularVelocitydegsLabel.Text = 'angularVelocity [rad/s] = ';
             end
+            if calcCourseplot(app)
+                plotCourse(app);
+            end
         end
 
         % Value changed function: graphPositionBotton
@@ -1088,7 +1112,6 @@ classdef logAnalysis < matlab.apps.AppBase
             if app.ShortCutwindowSlider.Value < 1
                 app.ShortCutwindowSlider.Value = 1;
             end
-            calcShortCutplot(app);
             plotCourse(app);
         end
 
@@ -1099,7 +1122,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Button pushed function: Button_Rotate
         function Button_RotatePushed(app, event)
-            app.rotate = app.rotate - 90;
+            app.rotate = mod(app.rotate - 90,360);
             calcCourseplot(app);
             plotCourse(app);
         end
