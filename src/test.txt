@@ -201,14 +201,7 @@ classdef logAnalysis < matlab.apps.AppBase
         %      label: エラー表示用の項目名
         % 戻り値 data: 有限な実数の列ベクトル（double）
         function data = evaluateLogEquation(app,logData,equation,label)
-            % 空白なし・複数空白・タブも受け付け、evalは使用しない
-            equation = char(string(equation));
-            tokens = regexp(strtrim(strrep(strrep(equation,'*',' * '),'/',' / ')), ...
-                '\S+','match');
-            if isempty(tokens) || mod(numel(tokens),2) ~= 1
-                error("logAnalysis:InvalidEquation", ...
-                    "%s換算式は「列名 * 数値 / 数値」の形式で指定してください。",label);
-            end
+            tokens = validateLogEquation(app,equation,label);
             column = tokens{1};
             if ~ismember(column,logData.Properties.VariableNames)
                 error("logAnalysis:MissingColumn","%s換算式の列がありません: %s",label,column);
@@ -243,6 +236,141 @@ classdef logAnalysis < matlab.apps.AppBase
                 if any(~isfinite(data))
                     error("logAnalysis:InvalidEquation","%s換算結果にInfまたはNaNがあります。",label);
                 end
+            end
+        end
+        % 換算式の構文と定数を検証する（ログ読込前の設定検証にも使用）
+        % 引数 equation: 換算式、label: エラー表示用の項目名
+        % 戻り値 tokens: 列名と演算子・定数のトークン
+        function tokens = validateLogEquation(app,equation,label)
+            equation = char(string(equation));
+            tokens = regexp(strtrim(strrep(strrep(equation,'*',' * '),'/',' / ')), ...
+                '\S+','match');
+            if isempty(tokens) || mod(numel(tokens),2) ~= 1 || ...
+                    isempty(regexp(tokens{1},'^[A-Za-z]\w*$','once'))
+                error("logAnalysis:InvalidEquation", ...
+                    "%s換算式は「列名 * 数値 / 数値」の形式で指定してください。",label);
+            end
+            for tokenIndex = 2:2:numel(tokens)
+                operator = tokens{tokenIndex};
+                operandText = tokens{tokenIndex+1};
+                operand = str2double(operandText);
+                numericPattern = '^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$';
+                if ~ismember(operator,{'*','/'}) || ...
+                        isempty(regexp(operandText,numericPattern,'once')) || ...
+                        ~isreal(operand) || ~isfinite(operand) || ...
+                        (strcmp(operator,'/') && operand == 0)
+                    error("logAnalysis:InvalidEquation", ...
+                        "%s換算式の演算子または定数が不正です: %s %s",label,operator,operandText);
+                end
+            end
+        end
+
+        % 設定CSVを全項目検証し、検証成功後にUIへ反映する
+        % 引数 filePath: 設定CSVのパス
+        % 戻り値 isSuccess: 読込・反映成功、settingsMap: 検証済み設定
+        function [isSuccess,settingsMap] = loadSettings(app,filePath)
+            isSuccess = false;
+            settingsMap = [];
+            try
+                settingsTable = readtable(filePath,'TextType','string');
+                if ~all(ismember({'key','value'},settingsTable.Properties.VariableNames))
+                    error("logAnalysis:InvalidSettings","設定CSVにはkey,value列が必要です。");
+                end
+                keys = strtrim(string(settingsTable.key));
+                values = strtrim(string(settingsTable.value));
+                if any(ismissing(keys)) || any(ismissing(values)) || ...
+                        any(strlength(keys)==0) || any(strlength(values)==0) || ...
+                        numel(unique(keys)) ~= numel(keys)
+                    error("logAnalysis:InvalidSettings","設定CSVに空の項目または重複キーがあります。");
+                end
+                candidate = containers.Map(cellstr(keys),cellstr(values));
+                required = {'logFolderDir','timeEquation','velocityEquation','angularVelocityEquation', ...
+                    'radsCheckBox','switchDirection','data1','data2','data3','analysisLeft','analysisRight', ...
+                    'smoothLeft','smoothRight','windowLeft','windowRight','normalizeLeft','normalizeRight', ...
+                    'detrendLeft','detrendRight','ylimMatch','plotSwitch','windowSlider'};
+                missingKeys = required(~isKey(candidate,required));
+                if ~isempty(missingKeys)
+                    error("logAnalysis:InvalidSettings","設定キーが不足しています: %s",strjoin(missingKeys,', '));
+                end
+                if ~isfolder(candidate('logFolderDir'))
+                    error("logAnalysis:InvalidSettings","ログフォルダが存在しません: %s",candidate('logFolderDir'));
+                end
+                validateLogEquation(app,candidate('timeEquation'),"時間");
+                validateLogEquation(app,candidate('velocityEquation'),"速度");
+                validateLogEquation(app,candidate('angularVelocityEquation'),"角速度");
+                if ~ismember(lower(candidate('radsCheckBox')),{'true','false'})
+                    error("logAnalysis:InvalidSettings","radsCheckBoxはtrueまたはfalseで指定してください。");
+                end
+                optionKeys = {'switchDirection','smoothLeft','smoothRight','normalizeLeft', ...
+                    'normalizeRight','detrendLeft','detrendRight','ylimMatch','plotSwitch'};
+                optionControls = {app.SwitchDirection,app.smoothLDropDown,app.smoothRDropDown, ...
+                    app.normalizeLSwitch,app.normalizeRSwitch,app.detrendLSwitch,app.detrendRSwitch, ...
+                    app.ylimmatchSwitch,app.ShortCutplotSwitch};
+                for itemIndex = 1:numel(optionKeys)
+                    key = optionKeys{itemIndex};
+                    if ~ismember(candidate(key),optionControls{itemIndex}.Items)
+                        error("logAnalysis:InvalidSettings","%sの設定値が不正です: %s",key,candidate(key));
+                    end
+                end
+                numberKeys = {'windowLeft','windowRight','windowSlider'};
+                numberControls = {app.windowLSpinner,app.windowRSpinner,app.ShortCutwindowSlider};
+                numberValues = zeros(1,3);
+                for itemIndex = 1:3
+                    key = numberKeys{itemIndex};
+                    value = str2double(candidate(key));
+                    limits = numberControls{itemIndex}.Limits;
+                    if ~isreal(value) || ~isfinite(value) || value ~= fix(value) || ...
+                            value < limits(1) || value > limits(2)
+                        error("logAnalysis:InvalidSettings","%sは範囲内の整数で指定してください。",key);
+                    end
+                    numberValues(itemIndex) = value;
+                end
+
+                % 以下はすべて検証済み。途中までの設定反映を避ける
+                app.timeEditField.Value = candidate('timeEquation');
+                app.velocityEditField.Value = candidate('velocityEquation');
+                app.angularVelocityEditField.Value = candidate('angularVelocityEquation');
+                app.radsCheckBox.Value = strcmpi(candidate('radsCheckBox'),'true');
+                for itemIndex = 1:numel(optionKeys)
+                    optionControls{itemIndex}.Value = candidate(optionKeys{itemIndex});
+                end
+                for itemIndex = 1:3
+                    numberControls{itemIndex}.Value = numberValues(itemIndex);
+                end
+                app.rootDir = string(candidate('logFolderDir'));
+                [~,folderName] = fileparts(char(app.rootDir));
+                app.FolderButton.Text = folderName;
+                app.csvFilePathEditer.Value = fileparts(char(filePath));
+                settingsMap = candidate;
+                isSuccess = true;
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"設定読込失敗",ME.identifier,ME.message});
+            end
+        end
+
+        % ログ列の一覧に存在する保存済み選択だけを復元する
+        % 引数 settingsMap: 検証済み設定
+        function restoreLogSelections(app,settingsMap)
+            keys = {'data1','data2','data3','analysisLeft','analysisRight'};
+            controls = {app.Data1DropDown,app.Data2DropDown,app.Data3DropDown, ...
+                app.DataAnalysisLDropDown,app.DataAnalysisRDropDown};
+            for itemIndex = 1:numel(keys)
+                key = keys{itemIndex};
+                value = settingsMap(key);
+                if ismember(value,controls{itemIndex}.Items)
+                    controls{itemIndex}.Value = value;
+                else
+                    setTexttarea(app,{sprintf("設定項目%sの列%sがログにないため、現在の選択を使用します。",key,value)});
+                end
+            end
+        end
+
+        % 保存途中の一時ファイルを、残っている場合だけ削除する
+        % 引数 filePath: この保存処理が作成した一時ファイル
+        function cleanupSettingsFile(app,filePath)
+            if isfile(filePath)
+                delete(filePath);
             end
         end
         % ログファイル一覧の取得
@@ -511,7 +639,10 @@ classdef logAnalysis < matlab.apps.AppBase
         end
         
         % 設定用変数の保存
-        function saveVars(app)
+        function [isSuccess,errorMessage] = saveVars(app)
+            isSuccess = false;
+            errorMessage = "";
+            try
             % 設定をCSVファイルに書き出す
 			settings = {
                 "logFolderDir", app.rootDir;
@@ -538,22 +669,37 @@ classdef logAnalysis < matlab.apps.AppBase
 				"windowSlider", string(app.ShortCutwindowSlider.Value)
 			};
 			settingsTable = cell2table(settings,"VariableNames",{'key','value'}); % table作成
-            folderPath = "";
-            if app.csvFilePathEditer.Value == ""
-                F = msgbox("設定ファイルの保存フォルダを選択してください");
-                folderPath = uigetdir; % パスがないときはフォルダーを選択する
-                if any(folderPath)
+                folderPath = app.csvFilePathEditer.Value;
+                if isempty(folderPath)
+                    folderPath = uigetdir;
+                    if isequal(folderPath,0)
+                        setTexttarea(app,{"設定保存をキャンセルしました。"});
+                        return;
+                    end
                     app.csvFilePathEditer.Value = folderPath;
                 end
-                close(F);
-            end
-            if any(app.csvFilePathEditer.Value) || any(folderPath)
-                filePath = append(app.csvFilePathEditer.Value,"\",app.csvFileName);
-			    writetable(settingsTable,filePath);
-                setTexttarea(app, "設定保存完了")
+                if ~isfolder(folderPath)
+                    error("logAnalysis:SettingsSaveFailed","設定の保存先フォルダが存在しません: %s",folderPath);
+                end
+                filePath = fullfile(folderPath,app.csvFileName);
+                if isfolder(filePath)
+                    error("logAnalysis:SettingsSaveFailed","設定ファイルと同名のフォルダがあります: %s",filePath);
+                end
+                tempFile = [tempname(folderPath) '.csv'];
+                cleanupFile = onCleanup(@()cleanupSettingsFile(app,tempFile));
+                writetable(settingsTable,tempFile);
+                [moved,message] = movefile(tempFile,filePath,'f');
+                if ~moved
+                    error("logAnalysis:SettingsSaveFailed","設定ファイルの置換に失敗しました: %s",message);
+                end
+                isSuccess = true;
+                setTexttarea(app,{"設定保存完了"});
+            catch ME
+                errorMessage = string(ME.message);
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"設定保存失敗",ME.identifier,ME.message});
             end
         end
-        
         % データ処理
         function procData(app,pos)
             % 両側を現在の設定で処理し、描画データと範囲計算を一致させる
@@ -791,66 +937,26 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Code that executes after component creation
         function startupFcn(app, arg1)
-            % 起動時
+            settingsMap = [];
             try
-                % 設定ファイルを選択する
                 F = msgbox("設定ファイルを選択してください");
-                [filePath,location] = uigetfile({'*.csv'});
+                [fileName,location] = uigetfile({'*.csv'});
                 close(F);
-                % 設定用変数ファイルの読み込み（CSV）
-                if ~isequal(filePath,0)
-                    filePath = append(location,filePath);
-                    settingsTable = readtable(filePath,"TextType","string");   % Table型に変換
-                    settingsMap = containers.Map(settingsTable.key, settingsTable.value);   % キーマップ作成
-                    
-                    % 換算式をCSVから復元
-                    app.timeEditField.Value = settingsMap("timeEquation");
-                    app.velocityEditField.Value = settingsMap("velocityEquation");
-                    app.angularVelocityEditField.Value = settingsMap("angularVelocityEquation");
-                    app.radsCheckBox.Value = lower(settingsMap("radsCheckBox")) == "true";
-                    
-                    % 解析・ショートカット設定をCSVから復元
-                    app.SwitchDirection.Value = settingsMap("switchDirection");
-                    app.ShortCutplotSwitch.Value = settingsMap("plotSwitch");
-                    app.ylimmatchSwitch.Value = settingsMap("ylimMatch");
-                    app.normalizeLSwitch.Value = settingsMap("normalizeLeft");
-                    app.normalizeRSwitch.Value = settingsMap("normalizeRight");
-                    app.detrendLSwitch.Value = settingsMap("detrendLeft");
-                    app.detrendRSwitch.Value = settingsMap("detrendRight");
-                    
-                    % スピナー／スライダーの数値項目を文字列から復元
-                    windowLeft = str2double(settingsMap("windowLeft"));
-                    if ~isnan(windowLeft)
-                        app.windowLSpinner.Value = windowLeft;
+                if ~isequal(fileName,0)
+                    [loaded,settingsMap] = loadSettings(app,fullfile(location,fileName));
+                    if ~loaded
+                        return;
                     end
-                    windowRight = str2double(settingsMap("windowRight"));
-                    if ~isnan(windowRight)
-                        app.windowRSpinner.Value = windowRight;
-                    end
-                    sliderWindow = str2double(settingsMap("windowSlider"));
-                    if ~isnan(sliderWindow)
-                        app.ShortCutwindowSlider.Value = sliderWindow;
-                    end
-                    
-                    % ログフォルダパスをCSVから復元
-                    app.rootDir = settingsMap("logFolderDir");
-                    str = strsplit(app.rootDir, filesep);
-                    app.FolderButton.Text = str{end};
-
-                    % 設定ファイルのパスをCSVから復元
-                    app.csvFilePathEditer.Value = location;
                 else
-                    % 設定ファイルが無いときはログフォルダを選択する
                     F = msgbox("ログファイルの保存フォルダを選択してください");
                     app.rootDir = uigetdir;
                     close(F);
                 end
             catch ME
-                if (strcmp(ME.identifier,'MATLAB:load:couldNotReadFile'))
-                    % 設定用変数ファイルが無い
-                end
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"設定読込失敗",ME.identifier,ME.message});
+                return;
             end
-
             if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
 		        if ~getLogfiles(app)
                     return;
@@ -860,26 +966,9 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
 		        getLogvalues(app);  % ログ変数一覧を取得
     
-		        % 前回の表示グラフ名を取得
-		        if ~isequal(filePath,0)
-			        app.Data1DropDown.Value = settingsMap("data1");
-			        app.Data2DropDown.Value = settingsMap("data2");
-			        app.Data3DropDown.Value = settingsMap("data3");
-                    
-			        if isKey(settingsMap,"analysisLeft") && ismember(settingsMap("analysisLeft"), string(app.DataAnalysisLDropDown.Items))
-				        app.DataAnalysisLDropDown.Value = settingsMap("analysisLeft");
-			        end
-			        if isKey(settingsMap,"analysisRight") && ismember(settingsMap("analysisRight"), string(app.DataAnalysisRDropDown.Items))
-				        app.DataAnalysisRDropDown.Value = settingsMap("analysisRight");
-			        end
-			        if isKey(settingsMap,"smoothLeft")
-				        app.smoothLDropDown.Value = settingsMap("smoothLeft");
-			        end
-			        if isKey(settingsMap,"smoothRight")
-				        app.smoothRDropDown.Value = settingsMap("smoothRight");
-			        end
-		        end
-        
+                if ~isempty(settingsMap)
+                    restoreLogSelections(app,settingsMap);
+                end
 		        % スライダー範囲の設定
                 app.TimesSlider.Limits = [1 numel(app.time)];   % 時間配列のインデックスをスライダーの範囲に設定
                 Ticks = round(linspace(1,numel(app.time),17));  % インデックスを17等分する
@@ -1078,7 +1167,12 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Close request function: UIFigure
         function UIFigureCloseRequest(app, event)
-            saveVars(app); % 変数保存
+            [saved,errorMessage] = saveVars(app);
+            if ~saved && strlength(errorMessage)>0
+                % 親UIを閉じても残る非モーダル警告で保存失敗を通知する
+                warndlg("設定を保存できませんでした。" + newline + errorMessage, ...
+                    "設定保存失敗",'non-modal');
+            end
             delete(app)
         end
 
