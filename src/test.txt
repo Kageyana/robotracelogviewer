@@ -612,76 +612,110 @@ classdef logAnalysis < matlab.apps.AppBase
                 varData = detrend(varData);
             end
         end
-        function getTimeIndex(app,~,event)           
-            % グラフからデータを取り出す
-            X = event.Source.XData;
-            Y = event.Source.YData;
-
-            % マウス座標を取得
-            if class(event.Source) == "matlab.graphics.chart.primitive.Scatter"     % コース描画
-                Cp = get(app.UIAxisCourse,'CurrentPoint');
-            elseif class(event.Source) == "matlab.graphics.chart.primitive.Line"    % 変数グラフ
-                % どのグラフかを判別する
-                if strcmp(event.Source.Parent.Title.String,(app.Data1DropDown.Value))
-                    Cp = get(app.UIAxes1,'CurrentPoint');
-                elseif strcmp(event.Source.Parent.Title.String,(app.Data2DropDown.Value))
-                    Cp = get(app.UIAxes2,'CurrentPoint');
-                elseif strcmp(event.Source.Parent.Title.String,(app.Data3DropDown.Value))
-                    Cp = get(app.UIAxes3,'CurrentPoint');
-                end
-            end      
-
-            % クリック位置のXy座標
-            Xp = Cp(2,1);
-            Yp = Cp(2,2);
-
-            % クリック点に近い配列値のインデックス
-            if class(event.Source) == "matlab.graphics.chart.primitive.Scatter"     % コース描画
-                [~,Ip] = min((X-Xp).^2+(Y-Yp).^2);
-            elseif class(event.Source) == "matlab.graphics.chart.primitive.Line"    % 変数グラフ
-                [~,Ip] = min((X-Xp).^2);
+        % ログ行のインデックスで現在地・スライダー・定数線を更新する
+        % 引数 index: 選択行番号（整数化して有効範囲に制限）
+        function selectCourseIndex(app,index)
+            if isempty(app.time) || isempty(app.course) || ...
+                    ~isnumeric(index) || ~isscalar(index) || ~isfinite(index)
+                return;
             end
-            timeIndex = app.course.Time(Ip);        % クリック点での時間を取得
-
-            setXlines(app,seconds(timeIndex));      % 定数線更新
-            app.TimesSlider.Value = Ip;  % スライドバー更新
-
-            % コース上に現在地をプロット
-            delete(app.marker)          % 前回値を削除
-            hold(app.UIAxisCourse, 'on');
-            app.marker = scatter(app.UIAxisCourse,app.course{timeIndex,'x'},app.course{timeIndex,'y'},"m",'filled');
-            hold(app.UIAxisCourse, 'off');           
-        end
-
-
-        
-        function plotVariableGraphs(app)
-            % 変数プロット
-            title(app.UIAxes1, app.Data1DropDown.Value)
-            title(app.UIAxes2, app.Data2DropDown.Value)
-            title(app.UIAxes3, app.Data3DropDown.Value)
-            app.UIAxes1.Title.Visible = "off";
-            app.UIAxes2.Title.Visible = "off";
-            app.UIAxes3.Title.Visible = "off";
-
-            if app.graphPositionBotton.Value == "On"
-                plot(app.UIAxes1,app.time,app.log.(app.Data1DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
-                plot(app.UIAxes2,app.time,app.log.(app.Data2DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
-                plot(app.UIAxes3,app.time,app.log.(app.Data3DropDown.Value),'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt))
-            else
-                plot(app.UIAxes1,app.time,app.log.(app.Data1DropDown.Value))
-                plot(app.UIAxes2,app.time,app.log.(app.Data2DropDown.Value))
-                plot(app.UIAxes3,app.time,app.log.(app.Data3DropDown.Value))
+            rowCount = min(numel(app.time),height(app.course));
+            lowerIndex = max(1,ceil(app.TimesSlider.Limits(1)));
+            upperIndex = min(rowCount,floor(app.TimesSlider.Limits(2)));
+            if lowerIndex > upperIndex
+                return;
             end
-
-            linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x')
-            index = round(app.TimesSlider.Value);
+            index = min(upperIndex,max(lowerIndex,round(index)));
+            app.TimesSlider.Value = index;
             setXlines(app,app.time(index));
 
-            % procData(app,"right");
-            % procData(app,"left");
+            % 時刻の重複に依存しない行番号で座標を選択する
+            x = app.course.x(index);
+            y = app.course.y(index);
+            if ~isfinite(x) || ~isfinite(y)
+                return;
+            end
+            if ~isempty(app.marker) && isgraphics(app.marker)
+                app.marker.XData = x;
+                app.marker.YData = y;
+            else
+                previousHold = ishold(app.UIAxisCourse);
+                hold(app.UIAxisCourse,'on');
+                app.marker = scatter(app.UIAxisCourse,x,y,"m",'filled', ...
+                    'HitTest','off','PickableParts','none');
+                if ~previousHold
+                    hold(app.UIAxisCourse,'off');
+                end
+            end
         end
-        
+
+        % クリック元の軸と座標から最も近いログ行を選択する
+        % 引数 src: クリックされた描画オブジェクト、event: クリックイベント
+        function getTimeIndex(app,src,event)
+            if isempty(app.time) || isempty(app.course) || ~isgraphics(src)
+                return;
+            end
+            sourceAxes = ancestor(src,'axes');
+            if isempty(sourceAxes)
+                return;
+            end
+            clickPoint = sourceAxes.CurrentPoint;
+            % クリックイベントの座標がある場合はその値を使用する
+            if (isstruct(event) && isfield(event,'IntersectionPoint')) || ...
+                    (isobject(event) && isprop(event,'IntersectionPoint'))
+                point = event.IntersectionPoint;
+                if isnumeric(point) && numel(point) >= 2 && all(isfinite(point(1:2)))
+                    clickPoint(1,1:2) = point(1:2);
+                end
+            end
+            X = src.XData(:);
+            if isa(src,'matlab.graphics.chart.primitive.Scatter') && ...
+                    isequal(sourceAxes,app.UIAxisCourse)
+                Y = src.YData(:);
+                distances = (X-clickPoint(1,1)).^2 + (Y-clickPoint(1,2)).^2;
+            elseif isa(src,'matlab.graphics.chart.primitive.Line') && ...
+                    (isequal(sourceAxes,app.UIAxes1) || ...
+                     isequal(sourceAxes,app.UIAxes2) || ...
+                     isequal(sourceAxes,app.UIAxes3))
+                if ~strcmp(app.graphPositionBotton.Value,"On")
+                    return;
+                end
+                distances = abs(X-clickPoint(1,1));
+            else
+                return;
+            end
+            distances(~isfinite(distances)) = Inf;
+            if isempty(distances) || all(isinf(distances))
+                return;
+            end
+            [~,index] = min(distances);
+            selectCourseIndex(app,index);
+        end
+
+        % 変数グラフを描画し、位置選択設定に応じてクリック処理を登録する
+        % 引数 graphAxes: 描画先の軸、dataDropDown: 表示列の選択UI
+        function plotVariableGraph(app,graphAxes,dataDropDown)
+            if isempty(app.log) || isempty(app.time)
+                return;
+            end
+            if strcmp(app.graphPositionBotton.Value,"On")
+                plot(graphAxes,app.time,app.log.(dataDropDown.Value), ...
+                    'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
+            else
+                plot(graphAxes,app.time,app.log.(dataDropDown.Value));
+            end
+            title(graphAxes,dataDropDown.Value);
+            graphAxes.Title.Visible = "off";
+        end
+
+        % 3つの変数グラフを更新し、選択位置を同期する
+        function plotVariableGraphs(app)
+            plotVariableGraph(app,app.UIAxes1,app.Data1DropDown);
+            plotVariableGraph(app,app.UIAxes2,app.Data2DropDown);
+            plotVariableGraph(app,app.UIAxes3,app.Data3DropDown);
+            linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x');
+            selectCourseIndex(app,app.TimesSlider.Value);
+        end
         function getParameter(app)
             
         end
@@ -912,56 +946,31 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Value changing function: TimesSlider
         function TimesSliderValueChanging(app, event)
-            if isprop(event,"Value")
-                changingValue = event.Value;
-            else
+            if isnumeric(event)
                 changingValue = event;
+            else
+                changingValue = event.Value;
             end
-            
-            index = round(changingValue);
-            t = min(seconds(app.time(index)));
-            snapTime = app.course.Time(t);
-
-            % コース上に現在地をプロット
-            delete(app.marker)          % 前回値を削除
-            hold(app.UIAxisCourse, 'on');
-            app.marker = scatter(app.UIAxisCourse,app.course{snapTime,'x'},app.course{snapTime,'y'},"m",'filled');
-            hold(app.UIAxisCourse, 'off');
-            % 変数グラフ上にプロット
-            setXlines(app,app.time(index));
-            
+            selectCourseIndex(app,changingValue);
         end
 
         % Value changed function: Data1DropDown
         function Data1DropDownValueChanged(app, event)
-            value = app.Data1DropDown.Value;
-            plot(app.UIAxes1,app.time,app.log.(value))
-            index = round(app.TimesSlider.Value);
-            setXlines(app,app.time(index)); %  X定数線を更新
-            title(app.UIAxes1, value)   % タイトル
-            app.UIAxes1.Title.Visible = "off";
+            plotVariableGraph(app,app.UIAxes1,app.Data1DropDown);
+            selectCourseIndex(app,app.TimesSlider.Value);
         end
 
         % Value changed function: Data2DropDown
         function Data2DropDownValueChanged(app, event)
-            value = app.Data2DropDown.Value;
-            plot(app.UIAxes2,app.time,app.log.(value))
-            index = round(app.TimesSlider.Value);
-            setXlines(app,app.time(index)); %  X定数線を更新
-            title(app.UIAxes2, value)   % タイトル
-            app.UIAxes2.Title.Visible = "off";
+            plotVariableGraph(app,app.UIAxes2,app.Data2DropDown);
+            selectCourseIndex(app,app.TimesSlider.Value);
         end
 
         % Value changed function: Data3DropDown
         function Data3DropDownValueChanged(app, event)
-            value = app.Data3DropDown.Value;
-            plot(app.UIAxes3,app.time,app.log.(value))
-            index = round(app.TimesSlider.Value);
-            setXlines(app,app.time(index)); %  X定数線を更新
-            title(app.UIAxes3, value)   % タイトル
-            app.UIAxes3.Title.Visible = "off";
+            plotVariableGraph(app,app.UIAxes3,app.Data3DropDown);
+            selectCourseIndex(app,app.TimesSlider.Value);
         end
-
         % Value changed function: DataAnalysisLDropDown
         function DataAnalysisLDropDownValueChanged(app, event)
             procData(app,"left");
@@ -1128,17 +1137,15 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Key press function: UIFigure
         function UIFigureKeyPress(app, event)
-            value = app.TimesSlider.Value; % get the slider value
-	        key = event.Key; % get the pressed key value
-            if strcmp(key,'leftarrow')
-    	        value = value-1; % left value
-            elseif strcmp(key,'rightarrow')
-                value = value+1; % right value
+            if strcmp(event.Key,'leftarrow')
+                step = -1;
+            elseif strcmp(event.Key,'rightarrow')
+                step = 1;
+            else
+                return;
             end
-            app.TimesSlider.Value = value; % set the slider value
-	        TimesSliderValueChanging(app, value); % execute the slider callback
+            selectCourseIndex(app,round(app.TimesSlider.Value)+step);
         end
-
         % Value changed function: Plotflag1enableCheckBox
         function Plotflag1enableCheckBoxValueChanged(app, event)
             plotFlagPoint(app); %　フラグをプロット
