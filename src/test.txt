@@ -120,38 +120,32 @@ classdef logAnalysis < matlab.apps.AppBase
     methods (Access = private)
 
         % ログデータを取得する
-        function getLogdata(app)
-            filename = strsplit(app.LogDropDown.Value);
-			filename = filename{1};
-            isSuccess = true;	% 例外発生時に後続処理を止めるためのフラグ
+        function isSuccess = getLogdata(app)
+            isSuccess = false; % 全処理が成功するまで未完了とする
 
 			try
 				% ログファイル読み込みと最低限の行数チェックを例外処理で保護
-                filePath = append(app.rootDir,'\\',filename,".csv");
-				app.log = readtable(filePath);		  % ログファイル読み込み
+                if isempty(app.LogDropDown.ItemsData)
+                    error("logAnalysis:NoLogFiles","読み込み可能なログファイルがありません。");
+                end
+                filePath = fullfile(app.rootDir,app.LogDropDown.Value);
+				logData = readtable(filePath);		  % ログファイル読み込み
                 meta = readcell(filePath,"Range","A1:AAAA1");         % パラメータを取得
                 colum = readcell(filePath,"Range","A2:AAAA2");         % 列名を取得 
-                rowNum = size(app.log.Properties.VariableNames,2);      % 有効なヘッダ数を取得
-                app.log.Properties.VariableNames = colum(1,1:rowNum);  %ヘッダを設定
+                rowNum = size(logData.Properties.VariableNames,2);      % 有効なヘッダ数を取得
+                logData.Properties.VariableNames = colum(1,1:rowNum);  %ヘッダを設定
 
-                % ヘッダに含まれるパラメータを取得
-                app.parameter = meta;
-                if isempty(app.parameter) == 0
-                    % パラメータがあるときはテキストエリアに書き込み
-                    app.TextArea_2.Value = app.parameter;
-                else
-                    % パラメータがないときはテキストエリアをクリア
-                    app.TextArea_2.Value = "";
-                end
-                
-                if height(app.log) < 2
+                % パラメータも一時変数で保持する
+                parameterData = meta;
+
+                if height(logData) < 2
                     error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
 
                 % テキストフィールドから換算式を取得
 				% 時間行列[s]
 				timeeq = split(app.timeEditField.Value);
-				app.time = app.log.(timeeq{1});
+				timeData = logData.(timeeq{1});
 				i = 2;
 				while i <= numel(timeeq)
 					if i + 1 > numel(timeeq)
@@ -163,26 +157,26 @@ classdef logAnalysis < matlab.apps.AppBase
 					end
 					% 演算子を判定して掛け算・割り算を実行
 					if timeeq(i) == "*"
-						app.time = app.time * operand;
+						timeData = timeData * operand;
 					elseif timeeq(i) == "/"
-						app.time = app.time / operand;
+						timeData = timeData / operand;
 					else
 						error("logAnalysis:InvalidEquation","時間換算式に無効な演算子があります: %s", timeeq{i});
 					end
 					i = i + 2;
                 end
-                app.dt = diff(app.time);
-                app.dt = [app.dt;app.dt(end)];
+                dtData = diff(timeData);
+                dtData = [dtData;dtData(end)];
 
 				% 速度行列[mm/s] の換算式を検証しながら計算
 				velocityeq = split(app.velocityEditField.Value);
-				app.velocity = app.log.(velocityeq{1});
+				velocityData = logData.(velocityeq{1});
                 if app.diffCheckBox.Value == 1
-                    m = diff(app.velocity);
+                    m = diff(velocityData);
                     n = [m;m(end)];
-                    o = n ./ app.dt;
+                    o = n ./ dtData;
 
-                    app.velocity = o;
+                    velocityData = o;
                 end
 				i = 2;
 				while i <= numel(velocityeq)
@@ -195,9 +189,9 @@ classdef logAnalysis < matlab.apps.AppBase
 					end
 					% 速度換算式の演算子を判定して計算
 					if velocityeq(i) == "*"
-						app.velocity = app.velocity * velocityOperand;
+						velocityData = velocityData * velocityOperand;
 					elseif velocityeq(i) == "/"
-						app.velocity = app.velocity / velocityOperand;
+						velocityData = velocityData / velocityOperand;
 					else
 						error("logAnalysis:InvalidEquation","速度換算式に無効な演算子があります: %s", velocityeq{i});
 					end
@@ -206,7 +200,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
 				% 角度速度配列[deg/s] の換算式を検証しながら計算（右旋回時にプラス）
 				angularVelocityeq = split(app.angularVelocityEditField.Value);
-				app.angularVelocity = app.log.(angularVelocityeq{1});
+				angularVelocityData = logData.(angularVelocityeq{1});
 				i = 2;
                 while i <= numel(angularVelocityeq)
                     if i + 1 > numel(angularVelocityeq)
@@ -218,14 +212,27 @@ classdef logAnalysis < matlab.apps.AppBase
                     end
                     % 角速度換算式の演算子を判定して計算
                     if angularVelocityeq(i) == "*"
-                        app.angularVelocity = app.angularVelocity * angularVelocityOperand;
+                        angularVelocityData = angularVelocityData * angularVelocityOperand;
                     elseif angularVelocityeq(i) == "/"
-                        app.angularVelocity = app.angularVelocity / angularVelocityOperand;
+                        angularVelocityData = angularVelocityData / angularVelocityOperand;
                     else
                         error("logAnalysis:InvalidEquation","角速度換算式に無効な演算子があります: %s", angularVelocityeq{i});
                     end
                     i = i + 2;
                 end
+                if isempty(parameterData)
+                    app.TextArea_2.Value = "";
+                else
+                    app.TextArea_2.Value = parameterData;
+                end
+                % 全ての読み込み・換算が成功した後にまとめて反映する
+                app.log = logData;
+                app.time = timeData;
+                app.dt = dtData;
+                app.velocity = velocityData;
+                app.angularVelocity = angularVelocityData;
+                app.parameter = parameterData;
+                isSuccess = true;
 
 			catch ME
 				app.Lamp.Color = "red";	% 例外発生をランプで通知
@@ -238,53 +245,63 @@ classdef logAnalysis < matlab.apps.AppBase
 				return;
 			end
 
-			setTexttarea(app, {append(app.rootDir,'\\',app.LogDropDown.Value,'.csv'), 'ログファイル読み込み完了'})
+			setTexttarea(app, {filePath, 'ログファイル読み込み完了'});
         end
         
 
         % ログファイル一覧の取得
-        function getLogfiles(app)
-            origDir = pwd;                              % カレントディレクトリを保持
-			cleanupObj = onCleanup(@() cd(origDir));    % 例外発生時も元に戻す
-			try
-				if ~isfolder(app.rootDir)
-					error("MATLAB:cd:NonExistentFolder","The folder does not exist.");   % 存在しない場合は従来エラーを再現
-				end
+        function isSuccess = getLogfiles(app)
+            isSuccess = false;
+            selectedFile = string(app.LogDropDown.Value);
+            try
+                if ~isfolder(app.rootDir)
+                    error("MATLAB:cd:NonExistentFolder","The folder does not exist.");
+                end
+                fileList = struct2table(dir(fullfile(app.rootDir,'*.csv')));
+                if isempty(fileList)
+                    error("logAnalysis:NoLogFiles","読み込み可能なログファイルがありません。");
+                end
+                % ソート用の番号と読み込み用の元ファイル名を分離する
+                fileNames = string(fileList.name);
+                logNumbers = str2double(erase(fileNames,lettersPattern | characterListPattern(".")));
+                valid = ~isnan(logNumbers) & fileList.bytes ~= 0;
+                fileList = fileList(valid,:);
+                fileNames = fileNames(valid);
+                logNumbers = logNumbers(valid);
+                if isempty(fileNames)
+                    error("logAnalysis:NoLogFiles","読み込み可能なログファイルがありません。");
+                end
+                [~,order] = sort(logNumbers,'descend');
+                fileList = fileList(order,:);
+                fileNames = fileNames(order);
+                logNumbers = logNumbers(order);
+                fileSize = string(round(fileList.bytes/1000));
+                fileDate = string(datetime(fileList.datenum,"ConvertFrom","datenum"),"yyyy/MM/dd");
 
-				fileList = dir(fullfile(app.rootDir,'*.csv'));          % cdを使わずにcsvファイル一覧を取得
-				fileList = struct2table(fileList);                      % table型に変換
-				fileList.name = convertCharsToStrings(fileList.name);   % String型に変換
-				fileList.name = erase(fileList.name,lettersPattern | characterListPattern("."));   % 文字と.を削除
-				fileList.name = str2double(fileList.name);              % double型に変換
-				idx = isnan(fileList.name);     % NaNを含む行を検索
-				fileList = fileList(~idx,:);    % NaNを含まない行だけを残す
-				fileList = fileList(fileList.bytes ~= 0,:);    % 空ファイルを削除
-				fileList = sortrows(fileList,'name','descend');     % 降順にソート
-				fileList.name = string(fileList.name);              % string型に変換
-
-				app.LogDropDown.Items = {};                         % ドロップダウンメニューを初期化
-
-                fileSize = num2str(round(fileList.bytes/1000,0),3);    % ファイルサイズ
-                fileSize = string(fileSize);
-                fileDate = datetime(fileList.datenum,"ConvertFrom","datenum");  % ファイル更新日
-                fileDate = string(fileDate,"yyyy/MM/dd");
-
-				app.LogDropDown.Items = append(fileList.name,"    ",fileSize,"KB","    ",fileDate);          % ドロップダウンメニューに追加
-	
-				app.Lamp.Color = "green";   % ステータスランプ緑
-				app.TextArea.Value = "";    % ステータスクリア
-			catch ME
-				app.Lamp.Color = "red";     % ステータスランプ赤
-				app.TextArea.Value = {ME.identifier,ME.message};   % エラー表示
-				if (strcmp(ME.identifier,'MATLAB:cd:NonExistentFolder'))
-					% 指定フォルダが見つからない
-					app.FolderButton.Text = "not found folder";
-				end
-				if (strcmp(ME.identifier,'MATLAB:string:MustBeCharCellArrayOrString'))
-					% 指定フォルダにcsvファイルが無い
-					app.LogDropDown.Items = "not found files";
-				end
-			end
+                % 表示文字列が変わってもファイル名で選択を保持する
+                app.LogDropDown.ItemsData = {};
+                app.LogDropDown.Items = append(string(logNumbers),"    ",fileSize,"KB","    ",fileDate);
+                app.LogDropDown.ItemsData = cellstr(fileNames);
+                if ismember(selectedFile,fileNames)
+                    app.LogDropDown.Value = char(selectedFile);
+                else
+                    % 選択ログが削除された場合は一覧の先頭を選ぶ
+                    app.LogDropDown.Value = char(fileNames(1));
+                end
+                app.LogDropDown.Enable = "on";
+                app.Lamp.Color = "green";
+                app.TextArea.Value = "";
+                isSuccess = true;
+            catch ME
+                app.LogDropDown.ItemsData = {};
+                app.LogDropDown.Items = {'not found files'};
+                app.LogDropDown.Enable = "off";
+                app.Lamp.Color = "red";
+                setTexttarea(app,{ME.identifier,ME.message});
+                if strcmp(ME.identifier,'MATLAB:cd:NonExistentFolder')
+                    app.FolderButton.Text = "not found folder";
+                end
+            end
         end
 
         % ログ変数一覧を取得
@@ -303,7 +320,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % テキストエリアに文字列を表示する
         function setTexttarea(app, str)
-            app.textarea = [app.textarea str];  % cell配列に文字列を追加
+            % stringとcharが混在してもTextAreaが受け付けるcellstrに統一する
+            messages = cellstr(string(str));
+            app.textarea = [app.textarea reshape(messages,1,[])];
             app.TextArea.Value = app.textarea;  % テキストエリアに表示
             scroll(app.TextArea,'bottom');      % 最下部までスクロール
         end
@@ -411,18 +430,20 @@ classdef logAnalysis < matlab.apps.AppBase
         end
         
         % ログの取得、再プロット
-        function reload(app,EventName)
-            if app.rootDir == 0
+        function isSuccess = reload(app,EventName)
+            isSuccess = false;
+            if isempty(app.rootDir) || isequal(app.rootDir,0)
                 app.rootDir = uigetdir;
             end
-            if app.rootDir ~= 0
-                nowLognum = app.LogDropDown.Value;
-
-                if max(strcmp(EventName,"ButtonPushed")) == 1
-                    getLogfiles(app);   % ログファイル一覧を取得
+            if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
+                if strcmp(EventName,"ButtonPushed")
+                    if ~getLogfiles(app)
+                        return;
+                    end
                 end
-                app.LogDropDown.Value = nowLognum;
-                getLogdata(app);    % ログデータを取得する
+                if ~getLogdata(app)
+                    return;
+                end
                 getLogvalues(app);  % ログ変数一覧を取得
 
                 
@@ -465,10 +486,10 @@ classdef logAnalysis < matlab.apps.AppBase
 
                 % 変数解析プロット
                 procData(app,"left");
-                procData(app,"right");
 
                 % 選択フラグのプロット
                 plotFlagPoint(app);
+                isSuccess = true;
             end
         end
         
@@ -518,84 +539,79 @@ classdef logAnalysis < matlab.apps.AppBase
         
         % データ処理
         function procData(app,pos)
-            % 設定項目を取得
-            if strcmp(pos,"left") == 1
-                varName = app.DataAnalysisLDropDown.Value;  % 変数名取得
-                method = app.smoothLDropDown.Value; % 平滑化メソッドを取得
-                window = app.windowLSpinner.Value;  % 移動ウィンドウ数
-                normalizeState = app.normalizeLSwitch.Value;    % 正規化の有無
-                detrendState = app.detrendLSwitch.Value;        % トレンド除去の有無
-            elseif strcmp(pos,"right") == 1
-                varName = app.DataAnalysisRDropDown.Value;  % 変数名取得
-                method = app.smoothRDropDown.Value; % 平滑化メソッドを取得
-                window = app.windowRSpinner.Value;  % 移動ウィンドウ数
-                normalizeState = app.normalizeRSwitch.Value;    % 正規化の有無
-                detrendState = app.detrendRSwitch.Value;        % トレンド除去の有無
-            end
-            match = app.ylimmatchSwitch.Value;    % Y軸範囲一致設定を取得
-
-            yyaxis(app.UIAxesAnalysis,pos)      % 軸の左右を選択
-            ylabel(app.UIAxesAnalysis,varName); % y軸ラベルを表示
-            if strcmp(varName,"none") == 0  % 選択Dataがnone以外
-                varData = app.log.(varName); % ログデータを取得
-                
-                % データの平滑化
-                if strcmp(method,"none") == 0 % smoothがnone以外
-                    varData = smoothdata(varData,method,window); 
-                end
-                % データの正規化
-                if strcmp(normalizeState,"On") == 1
-                    varData = normalize(varData); 
-                end
-                % データのトレンド除去
-                if strcmp(detrendState,"On") == 1
-                    varData = detrend(varData); 
-                end
-
-                plot(app.UIAxesAnalysis,app.time,varData) 
-                index = round(app.TimesSlider.Value);
-                setXlines(app,app.time(index)); %  X定数線を更新
-                
-                varNameL = app.DataAnalysisLDropDown.Value;  % 左側変数名取得
-                varNameR = app.DataAnalysisRDropDown.Value;  % 右側変数名取得
-                if strcmp(match,"On") == 1 && strcmp(varNameL,"none") == 0 && strcmp(varNameR,"none") == 0
-                    % 片方がnoneのときはY軸を揃えない
-                    % Y軸の範囲設定を左右で一致させる
-                    varDataL = app.log.(varNameL); % 左側ログデータを取得
-                    varDataR = app.log.(varNameR); % 右側ログデータを取得
-                    varData = [varDataL varDataR]; % Y軸範囲を取得
-
-                    % 上限を最大値、下限を最小値にする
-                    limmin = min(min(varData));
-                    limmax = max(max(varData));
-
-                    if limmin >= 0
-                        limmin = limmin * 0.9;
-                    else
-                        limmin = limmin * 1.1;
-                    end
-
-                    if limmax >= 0
-                        limmax = limmax * 1.1;
-                    else
-                        limmax = limmax * 0.9;
-                    end
-                    yyaxis(app.UIAxesAnalysis,"left")
-                    app.UIAxesAnalysis.YLim = [limmin limmax];
-                    yyaxis(app.UIAxesAnalysis,"right")
-                    app.UIAxesAnalysis.YLim = [limmin limmax];
+            % 両側を現在の設定で処理し、描画データと範囲計算を一致させる
+            [varNameL,varDataL] = getAnalysisData(app,"left");
+            [varNameR,varDataR] = getAnalysisData(app,"right");
+            sides = {"left","right"};
+            names = {varNameL,varNameR};
+            data = {varDataL,varDataR};
+            for sideIndex = 1:2
+                yyaxis(app.UIAxesAnalysis,sides{sideIndex});
+                ylabel(app.UIAxesAnalysis,names{sideIndex});
+                if strcmp(names{sideIndex},"none")
+                    cla(app.UIAxesAnalysis);
                 else
-                    % Y軸範囲をAuto変更にする
-                    yyaxis(app.UIAxesAnalysis,"left")
-                    app.UIAxesAnalysis.YLimMode = "auto";
-                    yyaxis(app.UIAxesAnalysis,"right")
-                    app.UIAxesAnalysis.YLimMode = "auto";
+                    plot(app.UIAxesAnalysis,app.time,data{sideIndex});
                 end
+                app.UIAxesAnalysis.YLimMode = "auto";
+            end
+
+            if strcmp(app.ylimmatchSwitch.Value,"On") && ...
+                    ~strcmp(varNameL,"none") && ~strcmp(varNameR,"none")
+                values = [varDataL(:);varDataR(:)];
+                values = values(isfinite(values));
+                if ~isempty(values)
+                    limmin = min(values);
+                    limmax = max(values);
+                    if limmin == limmax
+                        padding = max(1,abs(limmin)*0.1);
+                    else
+                        padding = (limmax-limmin)*0.1;
+                    end
+                    limits = [limmin-padding limmax+padding];
+                    for sideIndex = 1:2
+                        yyaxis(app.UIAxesAnalysis,sides{sideIndex});
+                        app.UIAxesAnalysis.YLim = limits;
+                    end
+                end
+            end
+            index = round(app.TimesSlider.Value);
+            setXlines(app,app.time(index));
+            yyaxis(app.UIAxesAnalysis,pos);
+        end
+
+        % 左右の解析設定を適用したデータを取得する
+        % 引数 pos: "left" または "right"
+        % 戻り値 varName: 選択列名、varData: 加工後データ（none時は空）
+        function [varName,varData] = getAnalysisData(app,pos)
+            if strcmp(pos,"left")
+                varName = app.DataAnalysisLDropDown.Value;
+                method = app.smoothLDropDown.Value;
+                window = app.windowLSpinner.Value;
+                normalizeState = app.normalizeLSwitch.Value;
+                detrendState = app.detrendLSwitch.Value;
             else
-                cla(app.UIAxesAnalysis) % none選択時はグラフ消去    
+                varName = app.DataAnalysisRDropDown.Value;
+                method = app.smoothRDropDown.Value;
+                window = app.windowRSpinner.Value;
+                normalizeState = app.normalizeRSwitch.Value;
+                detrendState = app.detrendRSwitch.Value;
+            end
+            varData = [];
+            if strcmp(varName,"none")
+                return;
+            end
+            varData = app.log.(varName);
+            if ~strcmp(method,"none")
+                varData = smoothdata(varData,method,window);
+            end
+            if strcmp(normalizeState,"On")
+                varData = normalize(varData);
+            end
+            if strcmp(detrendState,"On")
+                varData = detrend(varData);
             end
         end
-        
         function getTimeIndex(app,~,event)           
             % グラフからデータを取り出す
             X = event.Source.XData;
@@ -731,7 +747,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 [filePath,location] = uigetfile({'*.csv'});
                 close(F);
                 % 設定用変数ファイルの読み込み（CSV）
-                if filePath ~= 0
+                if ~isequal(filePath,0)
                     filePath = append(location,filePath);
                     settingsTable = readtable(filePath,"TextType","string");   % Table型に変換
                     settingsMap = containers.Map(settingsTable.key, settingsTable.value);   % キーマップ作成
@@ -784,13 +800,17 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
             end
 
-            if app.rootDir ~= 0
-		        getLogfiles(app);   % ログファイル一覧を取得
-		        getLogdata(app);    % ログデータを取得する
+            if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
+		        if ~getLogfiles(app)
+                    return;
+                end
+                if ~getLogdata(app)
+                    return;
+                end
 		        getLogvalues(app);  % ログ変数一覧を取得
     
 		        % 前回の表示グラフ名を取得
-		        if filePath ~= 0
+		        if ~isequal(filePath,0)
 			        app.Data1DropDown.Value = settingsMap("data1");
 			        app.Data2DropDown.Value = settingsMap("data2");
 			        app.Data3DropDown.Value = settingsMap("data3");
@@ -857,7 +877,6 @@ classdef logAnalysis < matlab.apps.AppBase
 
                 % 変数解析プロット
                 procData(app,"left");
-                procData(app,"right");
         
 		        % 単位変更
                 if app.radsCheckBox.Value == 0
@@ -872,7 +891,7 @@ classdef logAnalysis < matlab.apps.AppBase
         function FolderButtonPushed(app, event)
             % フォルダー選択
             app.rootDir = uigetdir;
-            if app.rootDir ~= 0
+            if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
                 str = strsplit(app.rootDir,'\');
                 app.FolderButton.Text = str{end};
                 getLogfiles(app);       % ログファイル一覧を取得
@@ -886,8 +905,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Button pushed function: ReloadButton
         function ReloadButtonPushed(app, event)
-            reload(app,event.EventName);
-            saveVars(app);
+            if reload(app,event.EventName)
+                saveVars(app);
+            end
         end
 
         % Value changing function: TimesSlider
