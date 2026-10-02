@@ -467,10 +467,115 @@ classdef logAnalysis < matlab.apps.AppBase
             end
         end
 
+        % フォルダ変更を読み込みまで実行し、失敗したら以前の表示状態へ戻す
+        % 引数 folder: 選択されたフォルダ（キャンセル時は0）
+        % 戻り値 isSuccess: 更新が完了したか
+        function isSuccess = changeLogFolder(app,folder)
+            isSuccess = false;
+            if isequal(folder,0) || isempty(folder)
+                return;
+            end
+            propertiesToSave = {'rootDir','log','time','dt','velocity','angularVelocity', ...
+                'parameter','course','shortCutCourse'};
+            previous = cell(size(propertiesToSave));
+            for itemIndex = 1:numel(propertiesToSave)
+                previous{itemIndex} = app.(propertiesToSave{itemIndex});
+            end
+            controls = {app.LogDropDown,app.Data1DropDown,app.Data2DropDown,app.Data3DropDown, ...
+                app.DataAnalysisLDropDown,app.DataAnalysisRDropDown, ...
+                app.Plotflag1DropDown,app.Plotflag2DropDown,app.Plotflag3DropDown};
+            items = cellfun(@(control)control.Items,controls,'UniformOutput',false);
+            values = cellfun(@(control)control.Value,controls,'UniformOutput',false);
+            itemsData = app.LogDropDown.ItemsData;
+            logEnable = app.LogDropDown.Enable;
+            folderLabel = app.FolderButton.Text;
+            sliderLimits = app.TimesSlider.Limits;
+            sliderValue = app.TimesSlider.Value;
+            sliderTicks = app.TimesSlider.MajorTicks;
+            sliderLabels = app.TimesSlider.MajorTickLabels;
+            metadata = app.TextArea_2.Value;
+            app.rootDir = string(folder);
+            if reload(app,"ButtonPushed")
+                [~,folderName] = fileparts(char(folder));
+                app.FolderButton.Text = folderName;
+                isSuccess = true;
+                return;
+            end
+            for itemIndex = 1:numel(propertiesToSave)
+                app.(propertiesToSave{itemIndex}) = previous{itemIndex};
+            end
+            app.LogDropDown.ItemsData = {};
+            for itemIndex = 1:numel(controls)
+                controls{itemIndex}.Items = items{itemIndex};
+                if itemIndex ~= 1
+                    controls{itemIndex}.Value = values{itemIndex};
+                end
+            end
+            app.LogDropDown.ItemsData = itemsData;
+            app.LogDropDown.Value = values{1};
+            app.LogDropDown.Enable = logEnable;
+            app.FolderButton.Text = folderLabel;
+            app.TextArea_2.Value = metadata;
+            app.TimesSlider.Limits = sliderLimits;
+            app.TimesSlider.Value = sliderValue;
+            app.TimesSlider.MajorTicks = sliderTicks;
+            app.TimesSlider.MajorTickLabels = sliderLabels;
+            % 読込後の描画失敗で消えた表示も、保存したデータから復元する
+            if ~isempty(app.course)
+                plotCourse(app);
+                plotVariableGraphs(app);
+                procData(app,"left");
+            end
+            app.Lamp.Color = "red";
+        end
+
+        % 行数に応じた重複しない時間スライダー目盛りを設定する
+        function configureTimeSlider(app)
+            rowCount = numel(app.time);
+            app.TimesSlider.Limits = [1 rowCount];
+            app.TimesSlider.Value = min(rowCount,max(1,round(app.TimesSlider.Value)));
+            ticks = unique(round(linspace(1,rowCount,min(17,rowCount))));
+            app.TimesSlider.MajorTicks = ticks;
+            app.TimesSlider.MajorTickLabels = cellstr(compose('%.6g',app.time(ticks)))';
+        end
+
+        % CW/CCWは表示範囲の向きを切り替え、実際の軌跡全体を含める
+        function applyCourseLimits(app)
+            bounds = app.courseSize;
+            if strcmp(app.SwitchDirection.Value,'CCW')
+                bounds = [-bounds(:,2) -bounds(:,1)];
+            end
+            if ~isempty(app.course)
+                bounds(1,:) = [min(bounds(1,1),min(app.course.x)-100) ...
+                    max(bounds(1,2),max(app.course.x)+100)];
+                bounds(2,:) = [min(bounds(2,1),min(app.course.y)-100) ...
+                    max(bounds(2,2),max(app.course.y)+100)];
+            end
+            app.UIAxisCourse.XLim = bounds(1,:);
+            app.UIAxisCourse.YLim = bounds(2,:);
+        end
+
+        % 数値列を検証し、描画・解析へ渡すdouble列ベクトルを取得する
+        % 引数 name: ログの列名、戻り値 data: 有限な実数列
+        function data = getNumericLogColumn(app,name)
+            if ~ismember(name,app.log.Properties.VariableNames)
+                error("logAnalysis:MissingColumn","ログ列%sがありません。",name);
+            end
+            data = app.log.(name);
+            if ~isnumeric(data) || ~isreal(data) || ~iscolumn(data) || ...
+                    numel(data) ~= numel(app.time) || any(~isfinite(data))
+                error("logAnalysis:InvalidColumn","列%sには行数の一致する有限な実数が必要です。欠損値と列の型を確認してください。",name);
+            end
+            data = double(data);
+        end
+
         % ログ変数一覧を取得
         function valnames = getLogvalues(app)
             valnames = app.log.Properties.VariableNames;
-            valnames = valnames(1,2:end);
+            % 列順に依存せず、描画可能な実数の数値列をすべて表示する
+            valid = cellfun(@(name)isnumeric(app.log.(name)) && ...
+                isreal(app.log.(name)) && iscolumn(app.log.(name)),valnames);
+            valnames = valnames(valid);
             app.Data1DropDown.Items = valnames;
             app.Data2DropDown.Items = valnames;
             app.Data3DropDown.Items = valnames;
@@ -507,6 +612,9 @@ classdef logAnalysis < matlab.apps.AppBase
                     angle = angle + app.rotate;
                     x = cumtrapz(app.time,app.velocity .* sind(angle));
                     y = cumtrapz(app.time,app.velocity .* cosd(angle));
+                end
+                if any(~isfinite(angle)) || any(~isfinite(x)) || any(~isfinite(y))
+                    error("logAnalysis:InvalidCourse","軌跡計算結果にInfまたはNaNがあります。換算式と補正係数を確認してください。");
                 end
                 % timetable変数作成
                 app.course = timetable(seconds(app.time),x,y,app.velocity,'VariableNames',{'x','y','velocity'});
@@ -554,7 +662,8 @@ classdef logAnalysis < matlab.apps.AppBase
         end
        
         % コース描画
-        function plotCourse(app)
+        function isSuccess = plotCourse(app)
+            isSuccess = false;
             if isempty(app.course)
                 return;
             end
@@ -569,8 +678,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 end
                 % プロット
                 scatter(app.UIAxisCourse,app.course,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
-                app.UIAxisCourse.XLim = [min(app.course.x)-100 max(app.course.x)+100];
-                app.UIAxisCourse.YLim = [min(app.course.y)-100 max(app.course.y)+100];
+                applyCourseLimits(app);
                 daspect(app.UIAxisCourse,[1 1 1]); % x,y軸の縦横比を1:1にする
 
                 % コース軸の設定
@@ -588,8 +696,11 @@ classdef logAnalysis < matlab.apps.AppBase
                     hold(app.UIAxisCourse, 'off');
                 end
                 
-                plotFlagPoint(app);
+                if ~plotFlagPoint(app)
+                    return;
+                end
                 selectCourseIndex(app,app.TimesSlider.Value);
+                isSuccess = true;
             catch ME
                 app.Lamp.Color = "red";     % ステータスランプ赤
                 % エラー表示
@@ -616,8 +727,13 @@ classdef logAnalysis < matlab.apps.AppBase
         % ログの取得、再プロット
         function isSuccess = reload(app,EventName)
             isSuccess = false;
+            try
             if isempty(app.rootDir) || isequal(app.rootDir,0)
-                app.rootDir = uigetdir;
+                folder = uigetdir;
+                if isequal(folder,0)
+                    return;
+                end
+                app.rootDir = folder;
             end
             if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
                 if strcmp(EventName,"ButtonPushed")
@@ -646,13 +762,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
     
                 % スライダー範囲の設定
-                app.TimesSlider.Limits = [1 numel(app.time)];   % 時間配列のインデックスをスライダーの範囲に設定
-                Ticks = round(linspace(1,numel(app.time),17));  % インデックスを17等分する
-                app.TimesSlider.MajorTicks = Ticks;             % 主目盛りを設定
-                TicksLabelnum = app.time(Ticks');               % ラベルにする秒数を時間配列から取得
-                TicksLabelstr = num2str(TicksLabelnum);         % 秒数を文字列に変換
-                TicksLabel = cellstr(TicksLabelstr)';           % cell配列に変換
-                app.TimesSlider.MajorTickLabels = TicksLabel;   % ラベルを設定
+                configureTimeSlider(app);
     
                 % 変数初期化
                 % app.kgyro = 1;
@@ -660,20 +770,30 @@ classdef logAnalysis < matlab.apps.AppBase
                 % app.Spinner.Value = 1;
     
                 % コース座標計算
-                calcCourseplot(app);    % コース座標計算
+                if ~calcCourseplot(app)
+                    return;
+                end
                 
                 % コース描画
-                plotCourse(app)
+                if ~plotCourse(app)
+                    return;
+                end
     
                 % 変数プロット
-                plotVariableGraphs(app);
+                if ~plotVariableGraphs(app)
+                    return;
+                end
 
                 % 変数解析プロット
-                procData(app,"left");
-
-                % 選択フラグのプロット
-                plotFlagPoint(app);
+                if ~procData(app,"left")
+                    return;
+                end
                 isSuccess = true;
+                app.Lamp.Color = "green";
+            end
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"ログ更新失敗",ME.identifier,ME.message});
             end
         end
         
@@ -740,7 +860,9 @@ classdef logAnalysis < matlab.apps.AppBase
             end
         end
         % データ処理
-        function procData(app,pos)
+        function isSuccess = procData(app,pos)
+            isSuccess = false;
+            try
             % 両側を現在の設定で処理し、描画データと範囲計算を一致させる
             [varNameL,varDataL] = getAnalysisData(app,"left");
             [varNameR,varDataR] = getAnalysisData(app,"right");
@@ -780,6 +902,11 @@ classdef logAnalysis < matlab.apps.AppBase
             index = round(app.TimesSlider.Value);
             setXlines(app,app.time(index));
             yyaxis(app.UIAxesAnalysis,pos);
+            isSuccess = true;
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"解析処理失敗",ME.identifier,ME.message});
+            end
         end
 
         % 左右の解析設定を適用したデータを取得する
@@ -803,7 +930,7 @@ classdef logAnalysis < matlab.apps.AppBase
             if strcmp(varName,"none")
                 return;
             end
-            varData = app.log.(varName);
+            varData = getNumericLogColumn(app,varName);
             if ~strcmp(method,"none")
                 varData = smoothdata(varData,method,window);
             end
@@ -812,6 +939,9 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             if strcmp(detrendState,"On")
                 varData = detrend(varData);
+            end
+            if any(~isfinite(varData))
+                error("logAnalysis:InvalidAnalysis","列%sの加工結果にInfまたはNaNがあります。",varName);
             end
         end
         % ログ行のインデックスで現在地・スライダー・定数線を更新する
@@ -896,33 +1026,51 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % 変数グラフを描画し、位置選択設定に応じてクリック処理を登録する
         % 引数 graphAxes: 描画先の軸、dataDropDown: 表示列の選択UI
-        function plotVariableGraph(app,graphAxes,dataDropDown)
+        function isSuccess = plotVariableGraph(app,graphAxes,dataDropDown)
+            isSuccess = false;
             if isempty(app.log) || isempty(app.time)
                 return;
             end
+            try
+            data = getNumericLogColumn(app,dataDropDown.Value);
             if strcmp(app.graphPositionBotton.Value,"On")
-                plot(graphAxes,app.time,app.log.(dataDropDown.Value), ...
+                plot(graphAxes,app.time,data, ...
                     'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
             else
-                plot(graphAxes,app.time,app.log.(dataDropDown.Value));
+                plot(graphAxes,app.time,data);
             end
             title(graphAxes,dataDropDown.Value);
             graphAxes.Title.Visible = "off";
+            isSuccess = true;
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"グラフ描画失敗",ME.identifier,ME.message});
+            end
         end
 
         % 3つの変数グラフを更新し、選択位置を同期する
-        function plotVariableGraphs(app)
-            plotVariableGraph(app,app.UIAxes1,app.Data1DropDown);
-            plotVariableGraph(app,app.UIAxes2,app.Data2DropDown);
-            plotVariableGraph(app,app.UIAxes3,app.Data3DropDown);
+        function isSuccess = plotVariableGraphs(app)
+            isSuccess = false;
+            if ~plotVariableGraph(app,app.UIAxes1,app.Data1DropDown) || ...
+                    ~plotVariableGraph(app,app.UIAxes2,app.Data2DropDown) || ...
+                    ~plotVariableGraph(app,app.UIAxes3,app.Data3DropDown)
+                return;
+            end
             linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x');
             selectCourseIndex(app,app.TimesSlider.Value);
+            isSuccess = true;
         end
         function getParameter(app)
             
         end
         
-        function plotFlagPoint(app)
+        function isSuccess = plotFlagPoint(app)
+            isSuccess = false;
+            if isempty(app.log) || isempty(app.course)
+                return;
+            end
+            previousHold = ishold(app.UIAxisCourse);
+            try
             enable1 = app.Plotflag1enableCheckBox.Value;
             enable2 = app.Plotflag2enableCheckBox.Value;
             enable3 = app.Plotflag3enableCheckBox.Value;
@@ -930,11 +1078,12 @@ classdef logAnalysis < matlab.apps.AppBase
                 % コース上に現在地をプロット
                 delete(app.flag1)          % 前回値を削除
                 hold(app.UIAxisCourse, 'on');
-                raise = app.log.(app.Plotflag1DropDown.Value) > 0;
+                raise = getNumericLogColumn(app,app.Plotflag1DropDown.Value) > 0;
                 snapTime = app.course.Time(raise);
                 flag1x = app.course{snapTime,'x'};
                 flag1y = app.course{snapTime,'y'};
-                app.flag1 = scatter(app.UIAxisCourse,flag1x,flag1y,"red",'filled');
+                app.flag1 = scatter(app.UIAxisCourse,flag1x,flag1y,"red",'filled', ...
+                    'HitTest','off','PickableParts','none');
                 hold(app.UIAxisCourse, 'off');
             else
                 delete(app.flag1)          % 前回値を削除
@@ -944,11 +1093,12 @@ classdef logAnalysis < matlab.apps.AppBase
                 % コース上に現在地をプロット
                 delete(app.flag2)          % 前回値を削除
                 hold(app.UIAxisCourse, 'on');
-                raise = app.log.(app.Plotflag2DropDown.Value) > 0;
+                raise = getNumericLogColumn(app,app.Plotflag2DropDown.Value) > 0;
                 snapTime = app.course.Time(raise);
                 flag2x = app.course{snapTime,'x'};
                 flag2y = app.course{snapTime,'y'};
-                app.flag2 = scatter(app.UIAxisCourse,flag2x,flag2y,"green",'filled');
+                app.flag2 = scatter(app.UIAxisCourse,flag2x,flag2y,"green",'filled', ...
+                    'HitTest','off','PickableParts','none');
                 hold(app.UIAxisCourse, 'off');
             else
                 delete(app.flag2)          % 前回値を削除
@@ -958,14 +1108,25 @@ classdef logAnalysis < matlab.apps.AppBase
                 % コース上に現在地をプロット
                 delete(app.flag3)          % 前回値を削除
                 hold(app.UIAxisCourse, 'on');
-                raise = app.log.(app.Plotflag3DropDown.Value) > 0;
+                raise = getNumericLogColumn(app,app.Plotflag3DropDown.Value) > 0;
                 snapTime = app.course.Time(raise);
                 flag3x = app.course{snapTime,'x'};
                 flag3y = app.course{snapTime,'y'};
-                app.flag3 = scatter(app.UIAxisCourse,flag3x,flag3y,"blue",'filled');
+                app.flag3 = scatter(app.UIAxisCourse,flag3x,flag3y,"blue",'filled', ...
+                    'HitTest','off','PickableParts','none');
                 hold(app.UIAxisCourse, 'off');
             else
                 delete(app.flag3)          % 前回値を削除
+            end
+            isSuccess = true;
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"フラグ描画失敗",ME.identifier,ME.message});
+            end
+            if previousHold
+                hold(app.UIAxisCourse,'on');
+            else
+                hold(app.UIAxisCourse,'off');
             end
         end
     end
@@ -1009,13 +1170,7 @@ classdef logAnalysis < matlab.apps.AppBase
                     restoreLogSelections(app,settingsMap);
                 end
 		        % スライダー範囲の設定
-                app.TimesSlider.Limits = [1 numel(app.time)];   % 時間配列のインデックスをスライダーの範囲に設定
-                Ticks = round(linspace(1,numel(app.time),17));  % インデックスを17等分する
-                app.TimesSlider.MajorTicks = Ticks;             % 主目盛りを設定
-                TicksLabelnum = app.time(Ticks');               % ラベルにする秒数を時間配列から取得
-                TicksLabelstr = num2str(TicksLabelnum);         % 秒数を文字列に変換
-                TicksLabel = cellstr(TicksLabelstr)';           % cell配列に変換
-                app.TimesSlider.MajorTickLabels = TicksLabel;   % ラベルを設定
+                configureTimeSlider(app);
 
 		        % 変数プロットのx軸設定
 		        app.UIAxes1.XLim = [0 app.time(end,1)];
@@ -1023,39 +1178,26 @@ classdef logAnalysis < matlab.apps.AppBase
 		        app.UIAxes3.XLim = [0 app.time(end,1)];
 		        app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
         
-		        % コース軸の設定
-		        % カラーバー表示
-		        if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
-			        delete(app.courseColorbar); % 既存カラーバーを削除して重複を回避
-		        end
-		        c = colorbar(app.UIAxisCourse);
-		        c.Label.String = 'velocity[mm/s]';
-		        c.Label.FontSize = 12;
-		        app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
-        
-		        % 軸設定
-		        if strcmp(app.SwitchDirection.Value,'CW') == 1
-			        app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
-			        app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
-		        else
-			        app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
-			        app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
-		        end
-		        app.UIAxisCourse.XTick = -10000:100:10000;
-		        app.UIAxisCourse.YTick = -10000:100:10000;
-        
 		        % コース描画、変数グラフ表示
 		        % コース座標計算
-		        calcCourseplot(app);    % コース座標計算
+                if ~calcCourseplot(app)
+                    return;
+                end
         
 		        % コース描画
-		        plotCourse(app)
+                if ~plotCourse(app)
+                    return;
+                end
         
 		        % 変数プロット
-		        plotVariableGraphs(app);
+                if ~plotVariableGraphs(app)
+                    return;
+                end
 
                 % 変数解析プロット
-                procData(app,"left");
+                if ~procData(app,"left")
+                    return;
+                end
         
 		        % 単位変更
                 if app.radsCheckBox.Value == 0
@@ -1068,12 +1210,9 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Button pushed function: FolderButton
         function FolderButtonPushed(app, event)
-            % フォルダー選択
-            app.rootDir = uigetdir;
-            if ~isempty(app.rootDir) && ~isequal(app.rootDir,0)
-                str = strsplit(app.rootDir,'\');
-                app.FolderButton.Text = str{end};
-                getLogfiles(app);       % ログファイル一覧を取得
+            folder = uigetdir;
+            if ~isequal(folder,0)
+                changeLogFolder(app,folder);
             end
         end
 
@@ -1177,9 +1316,9 @@ classdef logAnalysis < matlab.apps.AppBase
             app.CourseajustgyroKnob.Value = changingValue;
             
             app.kgyro = changingValue; % 角度補正係数にノブの値を代入
-            calcCourseplot(app);    % コース座標計算
-            % コース描画
-            plotCourse(app)
+            if calcCourseplot(app)
+                plotCourse(app);
+            end
         end
 
         % Value changing function: CourseajustgyroKnob
@@ -1188,20 +1327,14 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Spinner.Value = changingValue;
             
             app.kgyro = changingValue; % 角度補正係数にノブの値を代入
-            calcCourseplot(app);    % コース座標計算
-            % コース描画
-            plotCourse(app)
+            if calcCourseplot(app)
+                plotCourse(app);
+            end
         end
 
         % Value changed function: SwitchDirection
         function SwitchDirectionValueChanged(app, event)
-            if strcmp(app.SwitchDirection.Value,'CW') == 1
-                app.UIAxisCourse.XLim = [app.courseSize(1,1) app.courseSize(1,2)];
-                app.UIAxisCourse.YLim = [app.courseSize(2,1) app.courseSize(2,2)];
-            else
-                app.UIAxisCourse.XLim = [-app.courseSize(1,2) -app.courseSize(1,1)];
-                app.UIAxisCourse.YLim = [-app.courseSize(2,2) -app.courseSize(2,1)];
-            end
+            applyCourseLimits(app);
         end
 
         % Close request function: UIFigure
@@ -1252,8 +1385,9 @@ classdef logAnalysis < matlab.apps.AppBase
         % Button pushed function: Button_Rotate
         function Button_RotatePushed(app, event)
             app.rotate = mod(app.rotate - 90,360);
-            calcCourseplot(app);
-            plotCourse(app);
+            if calcCourseplot(app)
+                plotCourse(app);
+            end
         end
 
         % Button pushed function: Button_Expand
