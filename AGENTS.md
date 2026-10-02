@@ -8,15 +8,15 @@
 ## Dev environment tips
 
 - このプロジェクトは **MATLAB + App Designer** を前提としたアプリケーションです。
-- App Designer の `.mlapp` ファイルは **バイナリ形式** のため、**Codex では直接編集できません**。
+- App Designer の `.mlapp` ファイルは **バイナリ形式** です。CodexはMATLABの保存処理を使って反映できます。
 - その代わりに、`.mlapp` のコード部分を **`src/test.txt`** にコピーしておき、  
-  Codex / AI エージェントは **`src/test.txt` のみを編集対象** とします。
+  Codex / AI エージェントは **`src/test.txt` と `src/logAnalysis.mlapp` を編集対象** とします。
 
 ### `.mlapp` と `src/test.txt` の役割
 
 - `.mlapp`
   - App Designer が使用するバイナリファイルです。
-  - **AI エージェントは編集禁止**。人間のみが編集・保存します。
+  - 2026-10-03のユーザー指示によりAI編集禁止を解除しました。バックアップ確認後、AIエージェントもMATLABの保存処理を使って編集・保存できます。
 - `src/test.txt`
   - `.mlapp` の **コードビュー（classdef ～ end）のテキストコピー**を置くファイルです。
   - Codex / AI エージェントは、このファイルの MATLAB コードを編集します。
@@ -28,23 +28,25 @@
 2. Code View を開き、クラス定義全体（`classdef ... end`）をコピーする。
 3. リポジトリ内の `src/test.txt` を開き、コピーしたコードを貼り付けて保存する。
 4. その状態をコミットし、Codex が `src/test.txt` を編集できるようにする。
-5. Codex が更新した `src/test.txt` を確認し、必要に応じて `.mlapp` のコードビューに手動で反映する。
+5. バックアップを確認し、Codex が更新した `src/test.txt` を確認し、必要に応じて `.mlapp` のコードビューに手動またはCodexから反映する。
 
 ### Codex / AI エージェントが行う作業
 
-- 変更してよいファイルは **`src/test.txt` のみ** です。
+- 変更してよいファイルは **`src/test.txt` と `src/logAnalysis.mlapp`** です。
 - してよいこと
   - `src/test.txt` 内の MATLAB クラスコードの修正・リファクタリング。
   - メソッドやプロパティの追加、バグ修正、コメントの追加など。
 - してはいけないこと
-  - `.mlapp` / `.mlappinstall` の編集を試みること。
+  - `.mlappinstall` の直接編集。
   - クラス名や主要コールバック名、UI コンポーネント名を無断で変更して互換性を壊すこと。
   - ファイル全体を別物に置き換えるような大規模な書き換え（特別な指示がない限り禁止）。
 
 ### `.mlapp` への反映について
 
-- `src/test.txt` の内容を `.mlapp` に反映する作業は、**すべて人間が手動で行います**。
-- Codex はあくまで **`src/test.txt` 上のテキスト編集だけ** を行う前提でコードを提案してください。
+- `src/test.txt` の内容を `.mlapp` に反映する作業は、バックアップ確認後、Codexからも実行できます。
+- MATLABの保存処理で一時ファイルへ反映し、検証に成功したものを本ファイルへ置き換えます。
+- 実行コード、App Designerの編集用コード、変更したUI初期値を同期します。
+- MATLABで読込・起動を確認し、手動操作が未確認の場合はその旨を報告します。
 
 ---
 

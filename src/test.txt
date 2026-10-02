@@ -543,17 +543,17 @@ classdef logAnalysis < matlab.apps.AppBase
             app.TimesSlider.MajorTickLabels = cellstr(compose('%.6g',app.time(ticks)))';
         end
 
-        % CW/CCWは表示範囲の向きを切り替え、実際の軌跡全体を含める
+        % 軌跡の外周に均等な余白を付け、表示範囲の中央へ配置する
         function applyCourseLimits(app)
-            bounds = app.courseSize;
-            if strcmp(app.SwitchDirection.Value,'CCW')
-                bounds = [-bounds(:,2) -bounds(:,1)];
-            end
             if ~isempty(app.course)
-                bounds(1,:) = [min(bounds(1,1),min(app.course.x)-100) ...
-                    max(bounds(1,2),max(app.course.x)+100)];
-                bounds(2,:) = [min(bounds(2,1),min(app.course.y)-100) ...
-                    max(bounds(2,2),max(app.course.y)+100)];
+                padding = 100; % 軌跡外周の余白[mm]
+                bounds = [min(app.course.x)-padding max(app.course.x)+padding; ...
+                    min(app.course.y)-padding max(app.course.y)+padding];
+            else
+                bounds = app.courseSize;
+                if strcmp(app.SwitchDirection.Value,'CCW')
+                    bounds = [-bounds(:,2) -bounds(:,1)];
+                end
             end
             app.UIAxisCourse.XLim = bounds(1,:);
             app.UIAxisCourse.YLim = bounds(2,:);
@@ -1166,7 +1166,13 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % Button pushed function: FolderButton
         function FolderButtonPushed(app, event)
-            folder = uigetdir;
+            % 現在のログフォルダを選択画面の初期位置にする
+            if (ischar(app.rootDir) || isstring(app.rootDir)) && ...
+                    ~isempty(app.rootDir) && isfolder(app.rootDir)
+                folder = uigetdir(char(app.rootDir));
+            else
+                folder = uigetdir;
+            end
             if ~isequal(folder,0)
                 changeLogFolder(app,folder);
             end
