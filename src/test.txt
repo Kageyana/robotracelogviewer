@@ -16,6 +16,12 @@ classdef logAnalysis < matlab.apps.AppBase
         UIAxes1                   matlab.ui.control.UIAxes
         UIAxes2                   matlab.ui.control.UIAxes
         UIAxes3                   matlab.ui.control.UIAxes
+        UIAxes4                   matlab.ui.control.UIAxes
+        UIAxes5                   matlab.ui.control.UIAxes
+        Data4DropDown             matlab.ui.control.DropDown
+        Data4DropDownLabel        matlab.ui.control.Label
+        Data5DropDown             matlab.ui.control.DropDown
+        Data5DropDownLabel        matlab.ui.control.Label
         AnalysisTab               matlab.ui.container.Tab
         ylimmatchSwitch           matlab.ui.control.Switch
         ylimmatchSwitchLabel      matlab.ui.control.Label
@@ -101,13 +107,13 @@ classdef logAnalysis < matlab.apps.AppBase
         flag1               % フラグをコースにプロット
         flag2               % フラグをコースにプロット
         flag3               % フラグをコースにプロット
-        xlines = cell(1,10) % X軸定数線のオブジェクト配列
+        xlines = cell(1,6) % X軸定数線のオブジェクト配列
         courseColorbar      % コース描画用カラーバーハンドル
         lineSensorImage     % 5行×10センサーの濃淡画像
         lineSensorSelection % 選択中のログ行を示す枠
         coursePlot          % 基準軌跡の散布図（座標・色を更新して再利用）
         shortCutPlot        % ショートカット軌跡の散布図
-        variablePlots = cell(1,3) % 変数グラフの線
+        variablePlots = cell(1,5) % 変数グラフの線
         analysisPlots = cell(1,2) % 左右の解析グラフの線
         expand              % コースプロット最大化フラグ 1:最大
         rotate = 0          % コース全体の回転角度[deg]（rad入力時も度で保持）
@@ -338,6 +344,14 @@ classdef logAnalysis < matlab.apps.AppBase
                 if ~isempty(missingKeys)
                     error("logAnalysis:InvalidSettings","設定キーが不足しています: %s",strjoin(missingKeys,', '));
                 end
+                % 旧3グラフ設定は新規2項目の既定値を補って読み込む
+                extraKeys = {'data4','data5'};
+                extraDefaults = {'gyroVal_Z','encCurrentCorr_p'};
+                for itemIndex = 1:2
+                    if ~isKey(candidate,extraKeys{itemIndex})
+                        candidate(extraKeys{itemIndex}) = extraDefaults{itemIndex};
+                    end
+                end
                 if ~isfolder(candidate('logFolderDir'))
                     error("logAnalysis:InvalidSettings","ログフォルダが存在しません: %s",candidate('logFolderDir'));
                 end
@@ -398,9 +412,9 @@ classdef logAnalysis < matlab.apps.AppBase
         % ログ列の一覧に存在する保存済み選択だけを復元する
         % 引数 settingsMap: 検証済み設定
         function restoreLogSelections(app,settingsMap)
-            keys = {'data1','data2','data3','analysisLeft','analysisRight'};
+            keys = {'data1','data2','data3','data4','data5','analysisLeft','analysisRight'};
             controls = {app.Data1DropDown,app.Data2DropDown,app.Data3DropDown, ...
-                app.DataAnalysisLDropDown,app.DataAnalysisRDropDown};
+                app.Data4DropDown,app.Data5DropDown,app.DataAnalysisLDropDown,app.DataAnalysisRDropDown};
             for itemIndex = 1:numel(keys)
                 key = keys{itemIndex};
                 value = settingsMap(key);
@@ -489,7 +503,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 previous{itemIndex} = app.(propertiesToSave{itemIndex});
             end
             controls = {app.LogDropDown,app.Data1DropDown,app.Data2DropDown,app.Data3DropDown, ...
-                app.DataAnalysisLDropDown,app.DataAnalysisRDropDown, ...
+                app.Data4DropDown,app.Data5DropDown,app.DataAnalysisLDropDown,app.DataAnalysisRDropDown, ...
                 app.Plotflag1DropDown,app.Plotflag2DropDown,app.Plotflag3DropDown};
             items = cellfun(@(control)control.Items,controls,'UniformOutput',false);
             values = cellfun(@(control)control.Value,controls,'UniformOutput',false);
@@ -586,6 +600,8 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Data1DropDown.Items = valnames;
             app.Data2DropDown.Items = valnames;
             app.Data3DropDown.Items = valnames;
+            app.Data4DropDown.Items = valnames;
+            app.Data5DropDown.Items = valnames;
             app.Plotflag1DropDown.Items = valnames;
             app.Plotflag2DropDown.Items = valnames;
             app.Plotflag3DropDown.Items = valnames;
@@ -730,7 +746,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % 定数線の表示
         function setXlines(app,time)
-            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxesAnalysis};
+            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxes4,app.UIAxes5,app.UIAxesAnalysis};
             for itemIndex = 1:numel(axesList)
                 if isempty(app.xlines{itemIndex}) || ~isgraphics(app.xlines{itemIndex})
                     app.xlines{itemIndex} = xline(axesList{itemIndex},time, ...
@@ -780,7 +796,7 @@ classdef logAnalysis < matlab.apps.AppBase
                     restoreLogSelections(app,settingsMap);
                 end
                 configureTimeSlider(app);
-                axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxesAnalysis};
+                axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxes4,app.UIAxes5,app.UIAxesAnalysis};
                 for itemIndex = 1:numel(axesList)
                     axesList{itemIndex}.XLim = [0 app.time(end)];
                 end
@@ -832,6 +848,8 @@ classdef logAnalysis < matlab.apps.AppBase
 				"data1", string(app.Data1DropDown.Value);
 				"data2", string(app.Data2DropDown.Value);
 				"data3", string(app.Data3DropDown.Value);
+                "data4", string(app.Data4DropDown.Value);
+                "data5", string(app.Data5DropDown.Value);
 				"analysisLeft", string(app.DataAnalysisLDropDown.Value);
 				"analysisRight", string(app.DataAnalysisRDropDown.Value);
 				"smoothLeft", string(app.smoothLDropDown.Value);
@@ -1083,7 +1101,9 @@ classdef logAnalysis < matlab.apps.AppBase
             elseif isa(src,'matlab.graphics.chart.primitive.Line') && ...
                     (isequal(sourceAxes,app.UIAxes1) || ...
                      isequal(sourceAxes,app.UIAxes2) || ...
-                     isequal(sourceAxes,app.UIAxes3))
+                     isequal(sourceAxes,app.UIAxes3) || ...
+                     isequal(sourceAxes,app.UIAxes4) || ...
+                     isequal(sourceAxes,app.UIAxes5))
                 if ~strcmp(app.graphPositionBotton.Value,"On")
                     return;
                 end
@@ -1108,7 +1128,7 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             try
             data = getNumericLogColumn(app,dataDropDown.Value);
-            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3};
+            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxes4,app.UIAxes5};
             plotIndex = find(cellfun(@(axesHandle)isequal(axesHandle,graphAxes),axesList),1);
             app.variablePlots{plotIndex} = updateDataLine(app,graphAxes, ...
                 app.variablePlots{plotIndex},data);
@@ -1127,15 +1147,17 @@ classdef logAnalysis < matlab.apps.AppBase
             end
         end
 
-        % 3つの変数グラフを更新し、選択位置を同期する
+        % 5つの変数グラフを更新し、選択位置を同期する
         function isSuccess = plotVariableGraphs(app)
             isSuccess = false;
             if ~plotVariableGraph(app,app.UIAxes1,app.Data1DropDown) || ...
                     ~plotVariableGraph(app,app.UIAxes2,app.Data2DropDown) || ...
-                    ~plotVariableGraph(app,app.UIAxes3,app.Data3DropDown)
+                    ~plotVariableGraph(app,app.UIAxes3,app.Data3DropDown) || ...
+                    ~plotVariableGraph(app,app.UIAxes4,app.Data4DropDown) || ...
+                    ~plotVariableGraph(app,app.UIAxes5,app.Data5DropDown)
                 return;
             end
-            linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3],'x');
+            linkaxes([app.UIAxes1 app.UIAxes2 app.UIAxes3 app.UIAxes4 app.UIAxes5],'x');
             selectCourseIndex(app,app.TimesSlider.Value);
             isSuccess = true;
         end
@@ -1273,6 +1295,18 @@ classdef logAnalysis < matlab.apps.AppBase
             plotVariableGraph(app,app.UIAxes3,app.Data3DropDown);
             selectCourseIndex(app,app.TimesSlider.Value);
         end
+        % Value changed function: Data4DropDown
+        function Data4DropDownValueChanged(app, event)
+            plotVariableGraph(app,app.UIAxes4,app.Data4DropDown);
+            selectCourseIndex(app,app.TimesSlider.Value);
+        end
+
+        % Value changed function: Data5DropDown
+        function Data5DropDownValueChanged(app, event)
+            plotVariableGraph(app,app.UIAxes5,app.Data5DropDown);
+            selectCourseIndex(app,app.TimesSlider.Value);
+        end
+
         % Value changed function: DataAnalysisLDropDown
         function DataAnalysisLDropDownValueChanged(app, event)
             procData(app,"left");
@@ -1418,8 +1452,10 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.Spinner.Visible = "on";
                 app.SwitchDirection.Visible = "on";
 
-                app.UIAxisCourse.Position = [1 180 661 473];
+                app.UIAxisCourse.Position = [1 180 661 773];
                 app.LineSensorAxes.Position = [63 66 514 95];
+                app.TimesSlider.Position = [63 37 514 3];
+                app.TimesLabel.Position = [598 7 48 22];
             else
                 app.expand = 1;
 
@@ -1428,8 +1464,10 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.Spinner.Visible = "off";
                 app.SwitchDirection.Visible = "off";
 
-                app.UIAxisCourse.Position = [1 180 1162 473];
+                app.UIAxisCourse.Position = [1 180 1162 773];
                 app.LineSensorAxes.Position = [63 66 1015 95];
+                app.TimesSlider.Position = [63 37 1015 3];
+                app.TimesLabel.Position = [1098 7 48 22];
             end
         end
 
@@ -1494,7 +1532,7 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % Create UIFigure and hide until all components are created
             app.UIFigure = uifigure('Visible', 'off');
-            app.UIFigure.Position = [100 100 1263 713];
+            app.UIFigure.Position = [20 30 1263 1013];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
             app.UIFigure.KeyPressFcn = createCallbackFcn(app, @UIFigureKeyPress, true);
@@ -1510,7 +1548,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIAxisCourse.XGrid = 'on';
             app.UIAxisCourse.YGrid = 'on';
             app.UIAxisCourse.ColorOrder = [0 0.447058823529412 0.741176470588235;0.850980392156863 0.325490196078431 0.0980392156862745;0.929411764705882 0.694117647058824 0.125490196078431;0.494117647058824 0.184313725490196 0.556862745098039;0.466666666666667 0.674509803921569 0.188235294117647];
-            app.UIAxisCourse.Position = [1 180 661 473];
+            app.UIAxisCourse.Position = [1 180 661 773];
 
             % Create LineSensorAxes
             app.LineSensorAxes = uiaxes(app.UIFigure);
@@ -1527,23 +1565,23 @@ classdef logAnalysis < matlab.apps.AppBase
 
             % Create Lamp
             app.Lamp = uilamp(app.UIFigure);
-            app.Lamp.Position = [10 681 22 22];
+            app.Lamp.Position = [10 981 22 22];
 
             % Create FolderButton
             app.FolderButton = uibutton(app.UIFigure, 'push');
             app.FolderButton.ButtonPushedFcn = createCallbackFcn(app, @FolderButtonPushed, true);
-            app.FolderButton.Position = [112 681 130 23];
+            app.FolderButton.Position = [112 981 130 23];
             app.FolderButton.Text = 'path';
 
             % Create FolderpathLabel
             app.FolderpathLabel = uilabel(app.UIFigure);
-            app.FolderpathLabel.Position = [45 681 66 22];
+            app.FolderpathLabel.Position = [45 981 66 22];
             app.FolderpathLabel.Text = 'Folder path';
 
             % Create ReloadButton
             app.ReloadButton = uibutton(app.UIFigure, 'push');
             app.ReloadButton.ButtonPushedFcn = createCallbackFcn(app, @ReloadButtonPushed, true);
-            app.ReloadButton.Position = [562 681 100 22];
+            app.ReloadButton.Position = [562 981 100 22];
             app.ReloadButton.Text = 'Reload';
 
             % Create TimesLabel
@@ -1560,19 +1598,19 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create LogDropDownLabel
             app.LogDropDownLabel = uilabel(app.UIFigure);
             app.LogDropDownLabel.HorizontalAlignment = 'right';
-            app.LogDropDownLabel.Position = [252 681 26 22];
+            app.LogDropDownLabel.Position = [252 981 26 22];
             app.LogDropDownLabel.Text = 'Log';
 
             % Create LogDropDown
             app.LogDropDown = uidropdown(app.UIFigure);
             app.LogDropDown.Items = {'option'};
             app.LogDropDown.ValueChangedFcn = createCallbackFcn(app, @LogDropDownValueChanged, true);
-            app.LogDropDown.Position = [282 681 188 22];
+            app.LogDropDown.Position = [282 981 188 22];
             app.LogDropDown.Value = 'option';
 
             % Create TabGroup
             app.TabGroup = uitabgroup(app.UIFigure);
-            app.TabGroup.Position = [674 0 590 714];
+            app.TabGroup.Position = [674 0 590 1014];
 
             % Create GraphsTab
             app.GraphsTab = uitab(app.TabGroup);
@@ -1581,50 +1619,84 @@ classdef logAnalysis < matlab.apps.AppBase
             % Create UIAxes3
             app.UIAxes3 = uiaxes(app.GraphsTab);
             xlabel(app.UIAxes3, 'Time [s]')
-            app.UIAxes3.Position = [25 5 552 185];
+            app.UIAxes3.Position = [24 405 552 155];
 
             % Create UIAxes2
             app.UIAxes2 = uiaxes(app.GraphsTab);
             xlabel(app.UIAxes2, 'Time [s]')
-            app.UIAxes2.Position = [24 235 552 185];
+            app.UIAxes2.Position = [24 605 552 155];
 
             % Create UIAxes1
             app.UIAxes1 = uiaxes(app.GraphsTab);
             xlabel(app.UIAxes1, 'Time [s]')
-            app.UIAxes1.Position = [24 467 552 185];
+            app.UIAxes1.Position = [24 805 552 155];
+
+            % Create UIAxes4
+            app.UIAxes4 = uiaxes(app.GraphsTab);
+            xlabel(app.UIAxes4, 'Time [s]')
+            app.UIAxes4.Position = [24 205 552 155];
+
+            % Create UIAxes5
+            app.UIAxes5 = uiaxes(app.GraphsTab);
+            xlabel(app.UIAxes5, 'Time [s]')
+            app.UIAxes5.Position = [24 5 552 155];
+
+            % Create Data4DropDownLabel
+            app.Data4DropDownLabel = uilabel(app.GraphsTab);
+            app.Data4DropDownLabel.HorizontalAlignment = 'right';
+            app.Data4DropDownLabel.Position = [217 365 38 22];
+            app.Data4DropDownLabel.Text = 'Data4';
+
+            % Create Data4DropDown
+            app.Data4DropDown = uidropdown(app.GraphsTab);
+            app.Data4DropDown.Items = {'gyroVal_Z'};
+            app.Data4DropDown.ValueChangedFcn = createCallbackFcn(app, @Data4DropDownValueChanged, true);
+            app.Data4DropDown.Position = [269 365 115 22];
+
+            % Create Data5DropDownLabel
+            app.Data5DropDownLabel = uilabel(app.GraphsTab);
+            app.Data5DropDownLabel.HorizontalAlignment = 'right';
+            app.Data5DropDownLabel.Position = [217 165 38 22];
+            app.Data5DropDownLabel.Text = 'Data5';
+
+            % Create Data5DropDown
+            app.Data5DropDown = uidropdown(app.GraphsTab);
+            app.Data5DropDown.Items = {'encCurrentCorr_p'};
+            app.Data5DropDown.ValueChangedFcn = createCallbackFcn(app, @Data5DropDownValueChanged, true);
+            app.Data5DropDown.Position = [269 165 115 22];
 
             % Create Data2DropDownLabel
             app.Data2DropDownLabel = uilabel(app.GraphsTab);
             app.Data2DropDownLabel.HorizontalAlignment = 'right';
-            app.Data2DropDownLabel.Position = [217 425 38 22];
+            app.Data2DropDownLabel.Position = [217 765 38 22];
             app.Data2DropDownLabel.Text = 'Data2';
 
             % Create Data2DropDown
             app.Data2DropDown = uidropdown(app.GraphsTab);
             app.Data2DropDown.ValueChangedFcn = createCallbackFcn(app, @Data2DropDownValueChanged, true);
-            app.Data2DropDown.Position = [269 425 115 22];
+            app.Data2DropDown.Position = [269 765 115 22];
 
             % Create Data3DropDownLabel
             app.Data3DropDownLabel = uilabel(app.GraphsTab);
             app.Data3DropDownLabel.HorizontalAlignment = 'right';
-            app.Data3DropDownLabel.Position = [217 195 38 22];
+            app.Data3DropDownLabel.Position = [217 565 38 22];
             app.Data3DropDownLabel.Text = 'Data3';
 
             % Create Data3DropDown
             app.Data3DropDown = uidropdown(app.GraphsTab);
             app.Data3DropDown.ValueChangedFcn = createCallbackFcn(app, @Data3DropDownValueChanged, true);
-            app.Data3DropDown.Position = [269 195 115 22];
+            app.Data3DropDown.Position = [269 565 115 22];
 
             % Create Data1DropDownLabel
             app.Data1DropDownLabel = uilabel(app.GraphsTab);
             app.Data1DropDownLabel.HorizontalAlignment = 'right';
-            app.Data1DropDownLabel.Position = [216 653 38 22];
+            app.Data1DropDownLabel.Position = [217 965 38 22];
             app.Data1DropDownLabel.Text = 'Data1';
 
             % Create Data1DropDown
             app.Data1DropDown = uidropdown(app.GraphsTab);
             app.Data1DropDown.ValueChangedFcn = createCallbackFcn(app, @Data1DropDownValueChanged, true);
-            app.Data1DropDown.Position = [269 653 115 22];
+            app.Data1DropDown.Position = [269 965 115 22];
 
             % Create AnalysisTab
             app.AnalysisTab = uitab(app.TabGroup);
@@ -1985,7 +2057,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Button_Rotate.ButtonPushedFcn = createCallbackFcn(app, @Button_RotatePushed, true);
             app.Button_Rotate.Icon = fullfile(pathToMLAPP, 'rotate.jpg');
             app.Button_Rotate.BackgroundColor = [1 1 1];
-            app.Button_Rotate.Position = [526 681 22 22];
+            app.Button_Rotate.Position = [526 981 22 22];
             app.Button_Rotate.Text = '';
 
             % Create Button_Expand
@@ -1993,7 +2065,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.Button_Expand.ButtonPushedFcn = createCallbackFcn(app, @Button_ExpandPushed, true);
             app.Button_Expand.Icon = fullfile(pathToMLAPP, 'expand.jpg');
             app.Button_Expand.BackgroundColor = [1 1 1];
-            app.Button_Expand.Position = [479 681 22 22];
+            app.Button_Expand.Position = [479 981 22 22];
             app.Button_Expand.Text = '';
 
             % Show the figure after all components are created
