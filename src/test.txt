@@ -102,6 +102,10 @@ classdef logAnalysis < matlab.apps.AppBase
         flag3               % フラグをコースにプロット
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
         courseColorbar      % コース描画用カラーバーハンドル
+        coursePlot          % 基準軌跡の散布図（座標・色を更新して再利用）
+        shortCutPlot        % ショートカット軌跡の散布図
+        variablePlots = cell(1,3) % 変数グラフの線
+        analysisPlots = cell(1,2) % 左右の解析グラフの線
         expand              % コースプロット最大化フラグ 1:最大
         rotate = 0          % コース全体の回転角度[deg]（rad入力時も度で保持）
 
@@ -672,30 +676,40 @@ classdef logAnalysis < matlab.apps.AppBase
                 return;
             end
             try
-                % 既存カラーバーがある場合は削除して重複表示を防止
-                if ~isempty(app.courseColorbar) && isvalid(app.courseColorbar)
-                    delete(app.courseColorbar);
+                % 初回だけ作成し、以後は座標と速度色を更新する
+                previousNextPlot = app.UIAxisCourse.NextPlot;
+                app.UIAxisCourse.NextPlot = 'add';
+                cleanupAxes = onCleanup(@()set(app.UIAxisCourse,'NextPlot',previousNextPlot));
+                if isempty(app.coursePlot) || ~isgraphics(app.coursePlot)
+                    app.coursePlot = scatter(app.UIAxisCourse,app.course.x,app.course.y, ...
+                        36,app.course.velocity, ...
+                        'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
+                else
+                    set(app.coursePlot,'XData',app.course.x,'YData',app.course.y, ...
+                        'CData',app.course.velocity);
                 end
-                % プロット
-                scatter(app.UIAxisCourse,app.course,'x','y','ColorVariable','velocity','ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
                 applyCourseLimits(app);
-                daspect(app.UIAxisCourse,[1 1 1]); % x,y軸の縦横比を1:1にする
+                daspect(app.UIAxisCourse,[1 1 1]);
+                app.UIAxisCourse.CLimMode = 'auto';
 
-                % コース軸の設定
-                % カラーバー表示
-                c = colorbar(app.UIAxisCourse);
-                c.Label.String = 'velocity[mm/s]';
-                c.Label.FontSize = 12;
-                app.courseColorbar = c; % 新規作成したカラーバーのハンドルを保持
-
-                % ショートカット軌跡表示ボタンがONの時
-                if app.ShortCutplotSwitch.Value == "On"
-                    hold(app.UIAxisCourse, 'on');
-                    scatter(app.UIAxisCourse,app.shortCutCourse.x,app.shortCutCourse.y, ...
-                        'HitTest','off','PickableParts','none');
-                    hold(app.UIAxisCourse, 'off');
+                if isempty(app.courseColorbar) || ~isgraphics(app.courseColorbar)
+                    app.courseColorbar = colorbar(app.UIAxisCourse);
+                    app.courseColorbar.Label.String = 'velocity[mm/s]';
+                    app.courseColorbar.Label.FontSize = 12;
                 end
-                
+
+                if strcmp(app.ShortCutplotSwitch.Value,"On")
+                    if isempty(app.shortCutPlot) || ~isgraphics(app.shortCutPlot)
+                        app.shortCutPlot = scatter(app.UIAxisCourse,app.shortCutCourse.x, ...
+                            app.shortCutCourse.y,'HitTest','off','PickableParts','none');
+                    else
+                        set(app.shortCutPlot,'XData',app.shortCutCourse.x, ...
+                            'YData',app.shortCutCourse.y,'Visible','on');
+                    end
+                elseif ~isempty(app.shortCutPlot) && isgraphics(app.shortCutPlot)
+                    app.shortCutPlot.Visible = 'off';
+                end
+
                 if ~plotFlagPoint(app)
                     return;
                 end
@@ -713,15 +727,15 @@ classdef logAnalysis < matlab.apps.AppBase
 
         % 定数線の表示
         function setXlines(app,time)
-            % 定数線
-            delete(app.xlines{1});
-            delete(app.xlines{2});
-            delete(app.xlines{3});
-            delete(app.xlines{4});
-            app.xlines{1} = xline(app.UIAxes1,time);
-            app.xlines{2} = xline(app.UIAxes2,time);
-            app.xlines{3} = xline(app.UIAxes3,time);
-            app.xlines{4} = xline(app.UIAxesAnalysis,time);
+            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxesAnalysis};
+            for itemIndex = 1:numel(axesList)
+                if isempty(app.xlines{itemIndex}) || ~isgraphics(app.xlines{itemIndex})
+                    app.xlines{itemIndex} = xline(axesList{itemIndex},time, ...
+                        'HitTest','off','PickableParts','none');
+                else
+                    app.xlines{itemIndex}.Value = time;
+                end
+            end
         end
         
         % ログの取得、再プロット
@@ -744,59 +758,61 @@ classdef logAnalysis < matlab.apps.AppBase
                 if ~getLogdata(app)
                     return;
                 end
-                getLogvalues(app);  % ログ変数一覧を取得
-
-                
-    
-                % プロット初期化
-                cla(app.UIAxisCourse)
-                cla(app.UIAxes1)
-                cla(app.UIAxes2)
-                cla(app.UIAxes3)
-                cla(app.UIAxesAnalysis)
-    
-                % 変数プロットのx軸設定
-                app.UIAxes1.XLim = [0 app.time(end,1)];
-                app.UIAxes2.XLim = [0 app.time(end,1)];
-                app.UIAxes3.XLim = [0 app.time(end,1)];
-                app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
-    
-                % スライダー範囲の設定
-                configureTimeSlider(app);
-    
-                % 変数初期化
-                % app.kgyro = 1;
-                % app.CourseajustgyroKnob.Value = 1;
-                % app.Spinner.Value = 1;
-    
-                % コース座標計算
-                if ~calcCourseplot(app)
-                    return;
-                end
-                
-                % コース描画
-                if ~plotCourse(app)
-                    return;
-                end
-    
-                % 変数プロット
-                if ~plotVariableGraphs(app)
-                    return;
-                end
-
-                % 変数解析プロット
-                if ~procData(app,"left")
-                    return;
-                end
-                isSuccess = true;
-                app.Lamp.Color = "green";
+                isSuccess = initializeLogView(app,[]);
             end
             catch ME
                 app.Lamp.Color = "red";
                 setTexttarea(app,{"ログ更新失敗",ME.identifier,ME.message});
             end
         end
-        
+
+        % 起動と再読み込みで共通の列選択・軸・スライダー・描画を初期化する
+        % 引数 settingsMap: 起動時の保存済み選択（通常更新は空）
+        % 戻り値 isSuccess: 全計算と描画が成功したか
+        function isSuccess = initializeLogView(app,settingsMap)
+            isSuccess = false;
+            try
+                getLogvalues(app);
+                if ~isempty(settingsMap)
+                    restoreLogSelections(app,settingsMap);
+                end
+                configureTimeSlider(app);
+                axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3,app.UIAxesAnalysis};
+                for itemIndex = 1:numel(axesList)
+                    axesList{itemIndex}.XLim = [0 app.time(end)];
+                end
+                if app.radsCheckBox.Value
+                    app.angularVelocitydegsLabel.Text = 'angularVelocity [rad/s] = ';
+                else
+                    app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
+                end
+                % claを使わず、既存オブジェクトのデータを更新する
+                if ~calcCourseplot(app) || ~plotCourse(app) || ...
+                        ~plotVariableGraphs(app) || ~procData(app,"left")
+                    return;
+                end
+                isSuccess = true;
+                app.Lamp.Color = "green";
+            catch ME
+                app.Lamp.Color = "red";
+                setTexttarea(app,{"表示初期化失敗",ME.identifier,ME.message});
+            end
+        end
+
+        % 同じ軸の線を再利用し、削除された場合だけ作り直す
+        % 引数 graphAxes: 描画軸、plotHandle: 既存線、data: Y座標
+        % 戻り値 plotHandle: 更新後の線
+        function plotHandle = updateDataLine(app,graphAxes,plotHandle,data)
+            if isempty(plotHandle) || ~isgraphics(plotHandle)
+                previousNextPlot = graphAxes.NextPlot;
+                graphAxes.NextPlot = 'add';
+                cleanupAxes = onCleanup(@()set(graphAxes,'NextPlot',previousNextPlot));
+                plotHandle = plot(graphAxes,app.time,data);
+            else
+                set(plotHandle,'XData',app.time,'YData',data,'Visible','on');
+            end
+        end
+
         % 設定用変数の保存
         function [isSuccess,errorMessage] = saveVars(app)
             isSuccess = false;
@@ -873,9 +889,12 @@ classdef logAnalysis < matlab.apps.AppBase
                 yyaxis(app.UIAxesAnalysis,sides{sideIndex});
                 ylabel(app.UIAxesAnalysis,names{sideIndex});
                 if strcmp(names{sideIndex},"none")
-                    cla(app.UIAxesAnalysis);
+                    if ~isempty(app.analysisPlots{sideIndex}) && isgraphics(app.analysisPlots{sideIndex})
+                        app.analysisPlots{sideIndex}.Visible = 'off';
+                    end
                 else
-                    plot(app.UIAxesAnalysis,app.time,data{sideIndex});
+                    app.analysisPlots{sideIndex} = updateDataLine(app,app.UIAxesAnalysis, ...
+                        app.analysisPlots{sideIndex},data{sideIndex});
                 end
                 app.UIAxesAnalysis.YLimMode = "auto";
             end
@@ -1033,12 +1052,16 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             try
             data = getNumericLogColumn(app,dataDropDown.Value);
+            axesList = {app.UIAxes1,app.UIAxes2,app.UIAxes3};
+            plotIndex = find(cellfun(@(axesHandle)isequal(axesHandle,graphAxes),axesList),1);
+            app.variablePlots{plotIndex} = updateDataLine(app,graphAxes, ...
+                app.variablePlots{plotIndex},data);
             if strcmp(app.graphPositionBotton.Value,"On")
-                plot(graphAxes,app.time,data, ...
-                    'ButtonDownFcn',@(src,evnt)getTimeIndex(app,src,evnt));
+                app.variablePlots{plotIndex}.ButtonDownFcn = @(src,evnt)getTimeIndex(app,src,evnt);
             else
-                plot(graphAxes,app.time,data);
+                app.variablePlots{plotIndex}.ButtonDownFcn = [];
             end
+            graphAxes.YLimMode = 'auto';
             title(graphAxes,dataDropDown.Value);
             graphAxes.Title.Visible = "off";
             isSuccess = true;
@@ -1069,64 +1092,37 @@ classdef logAnalysis < matlab.apps.AppBase
             if isempty(app.log) || isempty(app.course)
                 return;
             end
-            previousHold = ishold(app.UIAxisCourse);
             try
-            enable1 = app.Plotflag1enableCheckBox.Value;
-            enable2 = app.Plotflag2enableCheckBox.Value;
-            enable3 = app.Plotflag3enableCheckBox.Value;
-            if enable1
-                % コース上に現在地をプロット
-                delete(app.flag1)          % 前回値を削除
-                hold(app.UIAxisCourse, 'on');
-                raise = getNumericLogColumn(app,app.Plotflag1DropDown.Value) > 0;
-                snapTime = app.course.Time(raise);
-                flag1x = app.course{snapTime,'x'};
-                flag1y = app.course{snapTime,'y'};
-                app.flag1 = scatter(app.UIAxisCourse,flag1x,flag1y,"red",'filled', ...
-                    'HitTest','off','PickableParts','none');
-                hold(app.UIAxisCourse, 'off');
-            else
-                delete(app.flag1)          % 前回値を削除
-            end
-
-            if enable2
-                % コース上に現在地をプロット
-                delete(app.flag2)          % 前回値を削除
-                hold(app.UIAxisCourse, 'on');
-                raise = getNumericLogColumn(app,app.Plotflag2DropDown.Value) > 0;
-                snapTime = app.course.Time(raise);
-                flag2x = app.course{snapTime,'x'};
-                flag2y = app.course{snapTime,'y'};
-                app.flag2 = scatter(app.UIAxisCourse,flag2x,flag2y,"green",'filled', ...
-                    'HitTest','off','PickableParts','none');
-                hold(app.UIAxisCourse, 'off');
-            else
-                delete(app.flag2)          % 前回値を削除
-            end
-
-            if enable3
-                % コース上に現在地をプロット
-                delete(app.flag3)          % 前回値を削除
-                hold(app.UIAxisCourse, 'on');
-                raise = getNumericLogColumn(app,app.Plotflag3DropDown.Value) > 0;
-                snapTime = app.course.Time(raise);
-                flag3x = app.course{snapTime,'x'};
-                flag3y = app.course{snapTime,'y'};
-                app.flag3 = scatter(app.UIAxisCourse,flag3x,flag3y,"blue",'filled', ...
-                    'HitTest','off','PickableParts','none');
-                hold(app.UIAxisCourse, 'off');
-            else
-                delete(app.flag3)          % 前回値を削除
-            end
-            isSuccess = true;
+                colors = {'red','green','blue'};
+                for itemIndex = 1:3
+                    propertyName = sprintf('flag%d',itemIndex);
+                    plotHandle = app.(propertyName);
+                    enabled = app.(sprintf('Plotflag%denableCheckBox',itemIndex)).Value;
+                    if ~enabled
+                        if ~isempty(plotHandle) && isgraphics(plotHandle)
+                            plotHandle.Visible = 'off';
+                        end
+                        continue;
+                    end
+                    columnName = app.(sprintf('Plotflag%dDropDown',itemIndex)).Value;
+                    selected = getNumericLogColumn(app,columnName) > 0;
+                    x = app.course.x(selected);
+                    y = app.course.y(selected);
+                    if isempty(plotHandle) || ~isgraphics(plotHandle)
+                        previousNextPlot = app.UIAxisCourse.NextPlot;
+                        app.UIAxisCourse.NextPlot = 'add';
+                        cleanupAxes = onCleanup(@()set(app.UIAxisCourse,'NextPlot',previousNextPlot));
+                        app.(propertyName) = scatter(app.UIAxisCourse,x,y,colors{itemIndex}, ...
+                            'filled','HitTest','off','PickableParts','none');
+                        clear cleanupAxes;
+                    else
+                        set(plotHandle,'XData',x,'YData',y,'Visible','on');
+                    end
+                end
+                isSuccess = true;
             catch ME
                 app.Lamp.Color = "red";
                 setTexttarea(app,{"フラグ描画失敗",ME.identifier,ME.message});
-            end
-            if previousHold
-                hold(app.UIAxisCourse,'on');
-            else
-                hold(app.UIAxisCourse,'off');
             end
         end
     end
@@ -1164,47 +1160,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 if ~getLogdata(app)
                     return;
                 end
-		        getLogvalues(app);  % ログ変数一覧を取得
-    
-                if ~isempty(settingsMap)
-                    restoreLogSelections(app,settingsMap);
-                end
-		        % スライダー範囲の設定
-                configureTimeSlider(app);
-
-		        % 変数プロットのx軸設定
-		        app.UIAxes1.XLim = [0 app.time(end,1)];
-		        app.UIAxes2.XLim = [0 app.time(end,1)];
-		        app.UIAxes3.XLim = [0 app.time(end,1)];
-		        app.UIAxesAnalysis.XLim = [0 app.time(end,1)];
-        
-		        % コース描画、変数グラフ表示
-		        % コース座標計算
-                if ~calcCourseplot(app)
-                    return;
-                end
-        
-		        % コース描画
-                if ~plotCourse(app)
-                    return;
-                end
-        
-		        % 変数プロット
-                if ~plotVariableGraphs(app)
-                    return;
-                end
-
-                % 変数解析プロット
-                if ~procData(app,"left")
-                    return;
-                end
-        
-		        % 単位変更
-                if app.radsCheckBox.Value == 0
-                    app.angularVelocitydegsLabel.Text = 'angularVelocity [deg/s] = ';
-                elseif app.radsCheckBox.Value == 1
-                    app.angularVelocitydegsLabel.Text = 'angularVelocity [rad/s] = ';
-                end
+                initializeLogView(app,settingsMap);
             end
         end
 
