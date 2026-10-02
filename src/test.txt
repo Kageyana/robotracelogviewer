@@ -40,6 +40,7 @@ classdef logAnalysis < matlab.apps.AppBase
         DataDropDownLabel_2       matlab.ui.control.Label
         DataLabel                 matlab.ui.control.Label
         UIAxesAnalysis            matlab.ui.control.UIAxes
+        LineSensorAxes            matlab.ui.control.UIAxes
         ParameterTab              matlab.ui.container.Tab
         TextArea_2                matlab.ui.control.TextArea
         consoleTab                matlab.ui.container.Tab
@@ -102,6 +103,8 @@ classdef logAnalysis < matlab.apps.AppBase
         flag3               % フラグをコースにプロット
         xlines = cell(1,10) % X軸定数線のオブジェクト配列
         courseColorbar      % コース描画用カラーバーハンドル
+        lineSensorImage     % 5行×10センサーの濃淡画像
+        lineSensorSelection % 選択中のログ行を示す枠
         coursePlot          % 基準軌跡の散布図（座標・色を更新して再利用）
         shortCutPlot        % ショートカット軌跡の散布図
         variablePlots = cell(1,3) % 変数グラフの線
@@ -979,6 +982,7 @@ classdef logAnalysis < matlab.apps.AppBase
             index = min(upperIndex,max(lowerIndex,round(index)));
             app.TimesSlider.Value = index;
             setXlines(app,app.time(index));
+            updateLineSensorImage(app,index);
 
             % 時刻の重複に依存しない行番号で座標を選択する
             x = app.course.x(index);
@@ -997,6 +1001,58 @@ classdef logAnalysis < matlab.apps.AppBase
                 if ~previousHold
                     hold(app.UIAxisCourse,'off');
                 end
+            end
+        end
+
+        % 選択行を中心に前後2行のラインセンサー値を白黒画像へ変換する
+        % 引数 index: 選択中のログ行。0番が左端、4096が白、0が黒
+        function updateLineSensorImage(app,index)
+            if isempty(app.LineSensorAxes) || ~isgraphics(app.LineSensorAxes)
+                return;
+            end
+            rowIndices = index + (-2:2);
+            validRows = rowIndices >= 1 & rowIndices <= height(app.log);
+            colors = repmat(0.75,5,10,3); % 行不足・不正値は灰色
+            labels = repmat({'--'},1,5);
+            for row = find(validRows)
+                labels{row} = sprintf('%d (%.3fs)',rowIndices(row),app.time(rowIndices(row)));
+            end
+            names = cellstr("lSensorCari" + string(0:9));
+            columnsPresent = all(ismember(names,app.log.Properties.VariableNames));
+            columnsNumeric = columnsPresent;
+            if columnsPresent
+                columnsNumeric = all(cellfun(@(name)isnumeric(app.log.(name)) && ...
+                    isreal(app.log.(name)) && iscolumn(app.log.(name)),names));
+            end
+            if columnsNumeric
+                values = double(app.log{rowIndices(validRows),names});
+                gray = min(4096,max(0,values)) / 4096;
+                gray(~isfinite(values)) = 0.75;
+                colors(validRows,:,:) = repmat(gray,1,1,3);
+                app.LineSensorAxes.Title.String = 'Line sensors (0: black / 4096: white)';
+            else
+                app.LineSensorAxes.Title.String = 'Line sensor columns unavailable';
+            end
+            if isempty(app.lineSensorImage) || ~isgraphics(app.lineSensorImage)
+                previousNextPlot = app.LineSensorAxes.NextPlot;
+                app.LineSensorAxes.NextPlot = 'add';
+                cleanupAxes = onCleanup(@()set(app.LineSensorAxes,'NextPlot',previousNextPlot));
+                app.lineSensorImage = image(app.LineSensorAxes,'XData',[0 9], ...
+                    'YData',[1 5],'CData',colors,'HitTest','off','PickableParts','none');
+            else
+                app.lineSensorImage.CData = colors;
+            end
+            app.LineSensorAxes.XLim = [-0.5 9.5];
+            app.LineSensorAxes.YLim = [0.5 5.5];
+            app.LineSensorAxes.YDir = 'reverse';
+            app.LineSensorAxes.YTickLabel = labels;
+            if isempty(app.lineSensorSelection) || ~isgraphics(app.lineSensorSelection)
+                previousNextPlot = app.LineSensorAxes.NextPlot;
+                app.LineSensorAxes.NextPlot = 'add';
+                cleanupSelection = onCleanup(@()set(app.LineSensorAxes,'NextPlot',previousNextPlot));
+                app.lineSensorSelection = rectangle(app.LineSensorAxes, ...
+                    'Position',[-0.5 2.5 10 1],'EdgeColor',[1 0 0],'LineWidth',1.5, ...
+                    'HitTest','off','PickableParts','none');
             end
         end
 
@@ -1362,7 +1418,8 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.Spinner.Visible = "on";
                 app.SwitchDirection.Visible = "on";
 
-                app.UIAxisCourse.Position = [1 45 661 608];
+                app.UIAxisCourse.Position = [1 180 661 473];
+                app.LineSensorAxes.Position = [63 66 514 95];
             else
                 app.expand = 1;
 
@@ -1371,7 +1428,8 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.Spinner.Visible = "off";
                 app.SwitchDirection.Visible = "off";
 
-                app.UIAxisCourse.Position = [1 45 1162 608];
+                app.UIAxisCourse.Position = [1 180 1162 473];
+                app.LineSensorAxes.Position = [63 66 1015 95];
             end
         end
 
@@ -1452,7 +1510,20 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIAxisCourse.XGrid = 'on';
             app.UIAxisCourse.YGrid = 'on';
             app.UIAxisCourse.ColorOrder = [0 0.447058823529412 0.741176470588235;0.850980392156863 0.325490196078431 0.0980392156862745;0.929411764705882 0.694117647058824 0.125490196078431;0.494117647058824 0.184313725490196 0.556862745098039;0.466666666666667 0.674509803921569 0.188235294117647];
-            app.UIAxisCourse.Position = [1 45 661 608];
+            app.UIAxisCourse.Position = [1 180 661 473];
+
+            % Create LineSensorAxes
+            app.LineSensorAxes = uiaxes(app.UIFigure);
+            app.LineSensorAxes.Position = [63 66 514 95];
+            app.LineSensorAxes.XLim = [-0.5 9.5];
+            app.LineSensorAxes.YLim = [0.5 5.5];
+            app.LineSensorAxes.XTick = 0:9;
+            app.LineSensorAxes.YTick = 1:5;
+            app.LineSensorAxes.YDir = 'reverse';
+            app.LineSensorAxes.FontSize = 8;
+            app.LineSensorAxes.Box = 'on';
+            app.LineSensorAxes.Title.String = 'Line sensors (0: black / 4096: white)';
+            app.LineSensorAxes.Toolbar.Visible = 'off';
 
             % Create Lamp
             app.Lamp = uilamp(app.UIFigure);
