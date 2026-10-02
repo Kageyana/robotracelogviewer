@@ -129,19 +129,17 @@ classdef logAnalysis < matlab.apps.AppBase
                     error("logAnalysis:NoLogFiles","読み込み可能なログファイルがありません。");
                 end
                 filePath = fullfile(app.rootDir,app.LogDropDown.Value);
-                % 自動推定で異常行がヘッダ扱いにならないよう開始行を固定する
+                % 先頭2行だけを読み、メタ情報は最初から文字列として扱う
+                [parameterData,columnNames] = readLogHeaders(app,filePath);
                 importOptions = detectImportOptions(filePath, ...
                     'VariableNamesLine',2,'VariableNamingRule','preserve');
                 importOptions.DataLines = [3 Inf];
+                if ~all(ismember(columnNames,string(importOptions.VariableNames)))
+                    error("logAnalysis:InvalidHeader","列名行と読込オプションの列名が一致しません。");
+                end
+                % 末尾カンマによる空列を本体テーブルへ取り込まない
+                importOptions.SelectedVariableNames = cellstr(columnNames);
                 logData = readtable(filePath,importOptions);
-                meta = readcell(filePath,"Range","A1:AAAA1");         % パラメータを取得
-                colum = readcell(filePath,"Range","A2:AAAA2");         % 列名を取得 
-                rowNum = size(logData.Properties.VariableNames,2);      % 有効なヘッダ数を取得
-                logData.Properties.VariableNames = colum(1,1:rowNum);  %ヘッダを設定
-
-                % パラメータも一時変数で保持する
-                parameterData = meta;
-
                 if height(logData) < 2
                     error("logAnalysis:InsufficientLogRows","ログファイルの行数が2行未満です。");
                 end
@@ -196,6 +194,47 @@ classdef logAnalysis < matlab.apps.AppBase
         end
         
 
+        % UTF-8ログの先頭2行を読み、メタ情報と列名を文字列へ統一する
+        % 引数 filePath: ログCSVのパス
+        % 戻り値 parameters: 表示用の文字列列ベクトル、columnNames: 列名
+        function [parameters,columnNames] = readLogHeaders(app,filePath)
+            [fileId,message] = fopen(filePath,'r','n','UTF-8');
+            if fileId < 0
+                error("logAnalysis:HeaderReadFailed","ヘッダを読み込めません: %s",message);
+            end
+            cleanupFile = onCleanup(@()fclose(fileId));
+            metadataLine = fgetl(fileId);
+            columnsLine = fgetl(fileId);
+            if ~ischar(metadataLine) || ~ischar(columnsLine)
+                error("logAnalysis:InvalidHeader","ログにはメタ情報行と列名行が必要です。");
+            end
+            if ~isempty(metadataLine) && metadataLine(1)==char(65279)
+                metadataLine = metadataLine(2:end); % UTF-8 BOMを除く
+            end
+            % %qで引用符内のカンマも扱い、数値・NaNを数値へ変換しない
+            parameters = strings(0,1);
+            if ~isempty(metadataLine)
+                metadata = textscan(metadataLine,'%q','Delimiter',',','Whitespace','');
+                parameters = string(metadata{1});
+                parameters(ismissing(parameters)) = "";
+                parameters = parameters(strlength(parameters)>0);
+                parameters = parameters(:);
+            end
+
+            if isempty(columnsLine)
+                error("logAnalysis:InvalidHeader","列名行が空です。");
+            end
+            columns = textscan(columnsLine,'%q','Delimiter',',','Whitespace','');
+            columnNames = strtrim(string(columns{1}));
+            while ~isempty(columnNames) && strlength(columnNames(end))==0
+                columnNames(end) = []; % ログの末尾カンマを許容する
+            end
+            if isempty(columnNames) || any(ismissing(columnNames)) || ...
+                    any(strlength(columnNames)==0) || numel(unique(columnNames))~=numel(columnNames)
+                error("logAnalysis:InvalidHeader","列名が空、または重複しています。");
+            end
+            columnNames = columnNames(:);
+        end
         % ログ列と定数の乗除算からなる換算式を検証・計算する
         % 引数 logData: 読込ログ、equation: 列名に*または/と数値を続ける式
         %      label: エラー表示用の項目名
