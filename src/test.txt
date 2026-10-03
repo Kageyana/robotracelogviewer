@@ -1028,7 +1028,7 @@ classdef logAnalysis < matlab.apps.AppBase
             if isempty(app.LineSensorAxes) || ~isgraphics(app.LineSensorAxes)
                 return;
             end
-            rowIndices = index + (-2:2);
+            rowIndices = index + (2:-1:-2); % 上が後、中央が現在、下が前
             validRows = rowIndices >= 1 & rowIndices <= height(app.log);
             colors = repmat(0.75,5,10,3); % 行不足・不正値は灰色
             labels = repmat({'--'},1,5);
