@@ -1479,7 +1479,7 @@ classdef logAnalysis < matlab.apps.AppBase
             end
         end
 
-        % Key press function: UIFigure
+        % Window key press function: UIFigure
         function UIFigureKeyPress(app, event)
             if strcmp(event.Key,'leftarrow')
                 step = -1;
@@ -1535,7 +1535,8 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIFigure.Position = [20 30 1263 1013];
             app.UIFigure.Name = 'MATLAB App';
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
-            app.UIFigure.KeyPressFcn = createCallbackFcn(app, @UIFigureKeyPress, true);
+            % 子コンポーネントにフォーカスがあっても左右キーを受け取る
+            app.UIFigure.WindowKeyPressFcn = createCallbackFcn(app, @UIFigureKeyPress, true);
 
             % Create UIAxisCourse
             app.UIAxisCourse = uiaxes(app.UIFigure);
