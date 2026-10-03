@@ -1490,6 +1490,13 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             selectCourseIndex(app,round(app.TimesSlider.Value)+step);
         end
+        % Window scroll wheel function: UIFigure
+        function UIFigureWindowScrollWheel(app, event)
+            % 下方向は次、上方向は前へホイール1目盛りにつき3行移動する
+            step = 3 * event.VerticalScrollCount;
+            selectCourseIndex(app,round(app.TimesSlider.Value)+step);
+        end
+
         % Value changed function: Plotflag1enableCheckBox
         function Plotflag1enableCheckBoxValueChanged(app, event)
             plotFlagPoint(app); %　フラグをプロット
@@ -1537,6 +1544,7 @@ classdef logAnalysis < matlab.apps.AppBase
             app.UIFigure.CloseRequestFcn = createCallbackFcn(app, @UIFigureCloseRequest, true);
             % 子コンポーネントにフォーカスがあっても左右キーを受け取る
             app.UIFigure.WindowKeyPressFcn = createCallbackFcn(app, @UIFigureKeyPress, true);
+            app.UIFigure.WindowScrollWheelFcn = createCallbackFcn(app, @UIFigureWindowScrollWheel, true);
 
             % Create UIAxisCourse
             app.UIAxisCourse = uiaxes(app.UIFigure);
