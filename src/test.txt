@@ -625,13 +625,42 @@ classdef logAnalysis < matlab.apps.AppBase
                 return;
             end
             try
-                % 換算式の出力単位に合わせて角度を積算する
-                angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
-                if app.radsCheckBox.Value
+                % 1ms積算角度があるログは、疎な瞬時角速度から再積分しない。
+                % imuAngle_Zは常にdeg。rad/sチェックは従来の角速度入力だけに適用する。
+                if ismember('imuAngle_Z',app.log.Properties.VariableNames)
+                    angle = double(app.log.imuAngle_Z) .* app.kgyro;
+                    if ismember('encTotalOptimal',app.log.Properties.VariableNames)
+                        pulsePerMm = app.pulse;
+                        scaleEntry = string(app.parameter);
+                        scaleEntry = scaleEntry(startsWith(scaleEntry,"encoderPulsePerMeter="));
+                        if ~isempty(scaleEntry)
+                            pulsePerMm = str2double(extractAfter(scaleEntry(1),"=")) / 1000;
+                        end
+                        if ~isscalar(pulsePerMm) || ~isfinite(pulsePerMm) || pulsePerMm <= 0
+                            error("logAnalysis:InvalidDistanceScale","エンコーダ距離換算値が不正です。");
+                        end
+                        distance = double(app.log.encTotalOptimal) ./ pulsePerMm;
+                        distanceStep = diff([0;distance]);
+                        if any(~isfinite(distanceStep)) || any(distanceStep < 0)
+                            error("logAnalysis:InvalidDistance","累積距離に不正値または逆行があります。");
+                        end
+                        % スタート原点から最初のレコードも含め、区間両端の平均姿勢を使う。
+                        heading = ([0;angle(1:end-1)] + angle) ./ 2 + app.rotate;
+                        x = cumsum(distanceStep .* sind(heading));
+                        y = cumsum(distanceStep .* cosd(heading));
+                    else
+                        angle = angle + app.rotate;
+                        x = cumtrapz(app.time,app.velocity .* sind(angle));
+                        y = cumtrapz(app.time,app.velocity .* cosd(angle));
+                    end
+                elseif app.radsCheckBox.Value
+                    % 積算角度のない旧ログは従来の換算式を使用する。
+                    angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
                     angle = angle + deg2rad(app.rotate);
                     x = cumtrapz(app.time,app.velocity .* sin(angle));
                     y = cumtrapz(app.time,app.velocity .* cos(angle));
                 else
+                    angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
                     angle = angle + app.rotate;
                     x = cumtrapz(app.time,app.velocity .* sind(angle));
                     y = cumtrapz(app.time,app.velocity .* cosd(angle));
