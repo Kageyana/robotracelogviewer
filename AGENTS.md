@@ -5,6 +5,10 @@
 
 ---
 
+## Skill
+
+ログビューワーの修正・MATLAB検証・MLAPP同期では、最初のコマンド前に [robotrace-log-viewer](.agents/skills/robotrace-log-viewer/SKILL.md) とその再発防止参照を読む。Skill実行の失敗は記録と同じ作業で手順へ反映する。
+
 ## Dev environment tips
 
 - このプロジェクトは **MATLAB + App Designer** を前提としたアプリケーションです。
