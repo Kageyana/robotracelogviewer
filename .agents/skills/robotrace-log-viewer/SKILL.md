@@ -17,9 +17,9 @@ git -c safe.directory=F:/Dropbox/Document/robotrace/Log/log -C F:/Dropbox/Docume
 
 2. MATLAB/Pythonの実体・版と権限を確認する。この環境のMATLABはsandboxのApplicationService初期化失敗が既知なので、実行が必要な検証は最初から承認された制限外環境で行う。既存MATLABセッションを終了しない。
 3. test.txtのUTF-8とクラス/UI名を保持して対象範囲を修正する。設定・テストCSVは一時コピーを使う。
-4. バックアップ後、MATLABの保存APIで一意な新しい一時MLAPPへ反映する。実行コード・App Designer編集用コード・変更したデザイン初期値を同期する。mlappinstallを直接編集しない。
+4. バックアップ後、既存test.txtとMLAPPのコードを改行だけ正規化して比較する。不一致なら[生成コード差の確認](../../../doc/失敗事例/2026-10-17-mlapp-generated-code-baseline.md)に従って編集処理・生成領域・コールバック順を確認し、未解決の処理差があれば停止する。MATLABの保存APIで一意な新しい一時MLAPPへ反映する。実行コード・App Designer編集用コード・変更したデザイン初期値を同期する。mlappinstallを直接編集しない。
 5. 生成成功と新ファイルの存在・ハッシュを確認してから、MATLABで読込・コンポーネント検査・起動・実コールバックを検証する。`which('logAnalysis')` が今回の一時MLAPPの絶対パスと一致することを先にassertする。
-6. 検証済みファイルを本体へ反映し、SHA256一致とtest.txtとのコード一致、対象外UIの保持を確認する。
+6. 元本体がバックアップ時から変わっていないことと一時成果物のハッシュを確認してから検証済みファイルを本体へ反映し、SHA256一致とtest.txtとのコード一致、対象外UIの保持を確認する。WinError32なら元ファイルを削除せず、[共有違反時の復旧](../../../doc/失敗事例/2026-10-17-mlapp-publish-sharing-violation.md)に従ってハッシュ・使用状態を確認する。継続ロックや他の権限エラーでは停止し、既存プロセスを終了しない。
 7. 自動コールバック検証と人の実マウス/キー操作を区別して報告する。手動確認が必要な項目を残す。
 
 ## 確認範囲

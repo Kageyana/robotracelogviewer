@@ -121,6 +121,8 @@ classdef logAnalysis < matlab.apps.AppBase
         time            % 時間配列
         dt              % 最初の単位時間
         velocity        % 速度配列
+        distance        % 速度換算式から取得または積分した累積距離[mm]
+        distanceFromEquation = false % 読込時にdiffが有効なら換算式を累積距離として使用
         angularVelocity % 角速度配列
         pulse = 58.019	% 1mmのロータリーエンコーダパルス
         kgyro = 1       % 角度補正係数
@@ -168,12 +170,20 @@ classdef logAnalysis < matlab.apps.AppBase
 
                 % 速度[mm/s]。diff時は換算後の値を時間間隔で微分する
                 velocityData = evaluateLogEquation(app,logData,app.velocityEditField.Value,"速度");
-                if app.diffCheckBox.Value
+                distanceFromEquationData = app.diffCheckBox.Value;
+                if distanceFromEquationData
+                    distanceData = velocityData; % 微分前の累積距離[mm]を軌跡に使う
                     delta = diff(velocityData);
                     velocityData = [delta;delta(end)] ./ dtData;
                     if any(~isfinite(velocityData))
                         error("logAnalysis:InvalidVelocity","速度の差分計算結果にInfまたはNaNがあります。");
                     end
+                else
+                    % 速度[mm/s]の入力は、ログ時間[s]で台形積分する。
+                    distanceData = cumtrapz(timeData,velocityData);
+                end
+                if any(~isfinite(distanceData)) || any(~isfinite(diff([0;distanceData])))
+                    error("logAnalysis:InvalidDistance","速度換算式から求めた距離にInfまたはNaNがあります。");
                 end
 
                 % 角速度は単位チェックボックスで指定したdeg/sまたはrad/s
@@ -188,6 +198,8 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.time = timeData;
                 app.dt = dtData;
                 app.velocity = velocityData;
+                app.distance = distanceData;
+                app.distanceFromEquation = distanceFromEquationData;
                 app.angularVelocity = angularVelocityData;
                 app.parameter = parameterData;
                 isSuccess = true;
@@ -248,74 +260,149 @@ classdef logAnalysis < matlab.apps.AppBase
             end
             columnNames = columnNames(:);
         end
-        % ログ列と定数の乗除算からなる換算式を検証・計算する
-        % 引数 logData: 読込ログ、equation: 列名に*または/と数値を続ける式
-        %      label: エラー表示用の項目名
+        % ログ列・数値・四則演算・括弧からなる換算式を行ごとに計算する
+        % 引数 logData: 読込ログ、equation: 換算式、label: エラー表示用の項目名
         % 戻り値 data: 有限な実数の列ベクトル（double）
         function data = evaluateLogEquation(app,logData,equation,label)
-            tokens = validateLogEquation(app,equation,label);
-            column = tokens{1};
-            if ~ismember(column,logData.Properties.VariableNames)
-                error("logAnalysis:MissingColumn","%s換算式の列がありません: %s",label,column);
-            end
-            data = logData.(column);
-            if ~isnumeric(data) || ~isreal(data) || ~isvector(data) || ...
-                    numel(data) ~= height(logData) || any(~isfinite(data(:)))
-                error("logAnalysis:InvalidColumn", ...
-                    "%s換算式の列は、各行に有限な実数が必要です: %s",label,column);
-            end
-            data = double(data(:));
-            for tokenIndex = 2:2:numel(tokens)
-                operator = tokens{tokenIndex};
-                operandText = tokens{tokenIndex+1};
-                numericPattern = '^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$';
-                operand = str2double(operandText);
-                if isempty(regexp(operandText,numericPattern,'once')) || ...
-                        ~isreal(operand) || ~isfinite(operand)
-                    error("logAnalysis:InvalidEquation", ...
-                        "%s換算式には有限な実数を指定してください: %s",label,operandText);
-                end
-                if strcmp(operator,'*')
-                    data = data .* operand;
-                elseif strcmp(operator,'/')
-                    if operand == 0
-                        error("logAnalysis:InvalidEquation","%s換算式でゼロ除算はできません。",label);
+            postfix = validateLogEquation(app,equation,label);
+            stack = cell(1,numel(postfix));
+            count = 0;
+            for tokenIndex = 1:numel(postfix)
+                token = postfix{tokenIndex};
+                if ismember(token,{'u+','u-'})
+                    if strcmp(token,'u-')
+                        stack{count} = -stack{count};
                     end
-                    data = data ./ operand;
+                elseif ismember(token,{'+','-','*','/'})
+                    right = stack{count};
+                    left = stack{count-1};
+                    count = count-1;
+                    switch token
+                        case '+'
+                            stack{count} = left + right;
+                        case '-'
+                            stack{count} = left - right;
+                        case '*'
+                            stack{count} = left .* right;
+                        case '/'
+                            if any(right(:) == 0)
+                                error("logAnalysis:InvalidEquation","%s換算式でゼロ除算はできません。",label);
+                            end
+                            stack{count} = left ./ right;
+                    end
                 else
-                    error("logAnalysis:InvalidEquation","%s換算式の演算子が不正です: %s",label,operator);
+                    count = count+1;
+                    if ~isempty(regexp(token,'^[A-Za-z]\w*$','once'))
+                        if ~ismember(token,logData.Properties.VariableNames)
+                            error("logAnalysis:MissingColumn","%s換算式の列がありません: %s",label,token);
+                        end
+                        value = logData.(token);
+                        if ~isnumeric(value) || ~isreal(value) || ~isvector(value) || ...
+                                numel(value) ~= height(logData) || any(~isfinite(value(:)))
+                            error("logAnalysis:InvalidColumn", ...
+                                "%s換算式の列は、各行に有限な実数が必要です: %s",label,token);
+                        end
+                        % 整数型の列も加算前にdoubleへ変換し、飽和と0.5パルス欠落を避ける。
+                        stack{count} = double(value(:));
+                    else
+                        stack{count} = str2double(token);
+                    end
                 end
-                if any(~isfinite(data))
+                if any(~isfinite(stack{count}(:)))
                     error("logAnalysis:InvalidEquation","%s換算結果にInfまたはNaNがあります。",label);
                 end
             end
-        end
-        % 換算式の構文と定数を検証する（ログ読込前の設定検証にも使用）
-        % 引数 equation: 換算式、label: エラー表示用の項目名
-        % 戻り値 tokens: 列名と演算子・定数のトークン
-        function tokens = validateLogEquation(app,equation,label)
-            equation = char(string(equation));
-            tokens = regexp(strtrim(strrep(strrep(equation,'*',' * '),'/',' / ')), ...
-                '\S+','match');
-            if isempty(tokens) || mod(numel(tokens),2) ~= 1 || ...
-                    isempty(regexp(tokens{1},'^[A-Za-z]\w*$','once'))
-                error("logAnalysis:InvalidEquation", ...
-                    "%s換算式は「列名 * 数値 / 数値」の形式で指定してください。",label);
+            data = stack{1};
+            if isscalar(data)
+                data = repmat(data,height(logData),1);
             end
-            for tokenIndex = 2:2:numel(tokens)
-                operator = tokens{tokenIndex};
-                operandText = tokens{tokenIndex+1};
-                operand = str2double(operandText);
-                numericPattern = '^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$';
-                if ~ismember(operator,{'*','/'}) || ...
-                        isempty(regexp(operandText,numericPattern,'once')) || ...
-                        ~isreal(operand) || ~isfinite(operand) || ...
-                        (strcmp(operator,'/') && operand == 0)
-                    error("logAnalysis:InvalidEquation", ...
-                        "%s換算式の演算子または定数が不正です: %s %s",label,operator,operandText);
+        end
+
+        % 換算式を検証し、演算順序を確定した後置記法へ変換する
+        % 引数 equation: 換算式、label: エラー表示用の項目名
+        % 戻り値 postfix: 列名・数値・演算子のトークン（設定検証でも使用）
+        function postfix = validateLogEquation(app,equation,label)
+            equation = char(string(equation));
+            if isempty(strtrim(equation)) || numel(equation) > 4096
+                error("logAnalysis:InvalidEquation","%s換算式が空、または長すぎます。",label);
+            end
+            % 符号は演算子として扱う。指数の符号だけは数値の一部とする。
+            pattern = '[A-Za-z]\w*|(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?|[+*/()\-]';
+            [starts,ends,tokens] = regexp(equation,pattern,'start','end','match');
+            remainder = equation;
+            for tokenIndex = 1:numel(starts)
+                remainder(starts(tokenIndex):ends(tokenIndex)) = ' ';
+            end
+            if ~isempty(strtrim(remainder)) || isempty(tokens) || numel(tokens) > 1024
+                error("logAnalysis:InvalidEquation", ...
+                    "%s換算式には列名・数値・四則演算・括弧を指定してください。",label);
+            end
+            [postfix,index] = parseLogExpression(app,tokens,1,1,label,0);
+            if index <= numel(tokens)
+                error("logAnalysis:InvalidEquation","%s換算式の演算子または括弧が不正です。",label);
+            end
+        end
+
+        % 優先順位に従って式を解析し、定数部分の不正値も検出する
+        % 引数 tokens: 入力、index: 開始位置、minimum: 最低優先順位、label: 項目名、depth: 再帰深さ
+        % 戻り値 postfix: 後置記法、index: 次の位置、constant: 定数値（列を含む場合NaN）
+        function [postfix,index,constant] = parseLogExpression(app,tokens,index,minimum,label,depth)
+            if index > numel(tokens) || depth > 64
+                error("logAnalysis:InvalidEquation","%s換算式の値が不足、または括弧・符号が深すぎます。",label);
+            end
+            token = tokens{index};
+            index = index+1;
+            if ismember(token,{'+','-'})
+                [postfix,index,constant] = parseLogExpression(app,tokens,index,3,label,depth+1);
+                postfix{end+1} = ['u' token];
+                if strcmp(token,'-'), constant = -constant; end
+            elseif strcmp(token,'(')
+                [postfix,index,constant] = parseLogExpression(app,tokens,index,1,label,depth+1);
+                if index > numel(tokens) || ~strcmp(tokens{index},')')
+                    error("logAnalysis:InvalidEquation","%s換算式の閉じ括弧がありません。",label);
+                end
+                index = index+1;
+            elseif ~isempty(regexp(token,'^[A-Za-z]\w*$','once'))
+                postfix = {token};
+                constant = NaN;
+            else
+                constant = str2double(token);
+                if ~isfinite(constant)
+                    error("logAnalysis:InvalidEquation","%s換算式には有限な実数を指定してください: %s",label,token);
+                end
+                postfix = {token};
+            end
+            while index <= numel(tokens)
+                operator = tokens{index};
+                if ismember(operator,{'+','-'})
+                    precedence = 1;
+                elseif ismember(operator,{'*','/'})
+                    precedence = 2;
+                else
+                    break;
+                end
+                if precedence < minimum, break; end
+                [right,index,rightConstant] = parseLogExpression(app,tokens,index+1,precedence+1,label,depth+1);
+                postfix = [postfix right {operator}]; %#ok<AGROW>
+                if strcmp(operator,'/') && rightConstant == 0
+                    error("logAnalysis:InvalidEquation","%s換算式でゼロ除算はできません。",label);
+                end
+                if isfinite(constant) && isfinite(rightConstant)
+                    switch operator
+                        case '+', constant = constant + rightConstant;
+                        case '-', constant = constant - rightConstant;
+                        case '*', constant = constant * rightConstant;
+                        case '/', constant = constant / rightConstant;
+                    end
+                    if ~isfinite(constant)
+                        error("logAnalysis:InvalidEquation","%s換算結果にInfまたはNaNがあります。",label);
+                    end
+                else
+                    constant = NaN;
                 end
             end
         end
+
 
         % 設定CSVを全項目検証し、検証成功後にUIへ反映する
         % 引数 filePath: 設定CSVのパス
@@ -344,10 +431,10 @@ classdef logAnalysis < matlab.apps.AppBase
                 if ~isempty(missingKeys)
                     error("logAnalysis:InvalidSettings","設定キーが不足しています: %s",strjoin(missingKeys,', '));
                 end
-                % 旧3グラフ設定は新規2項目の既定値を補って読み込む
-                extraKeys = {'data4','data5'};
-                extraDefaults = {'gyroVal_Z','encCurrentCorr_p'};
-                for itemIndex = 1:2
+                % 旧設定にないグラフ項目とdiff状態は既定値を補って読み込む
+                extraKeys = {'data4','data5','diffCheckBox'};
+                extraDefaults = {'gyroVal_Z','encCurrentCorr_p','false'};
+                for itemIndex = 1:numel(extraKeys)
                     if ~isKey(candidate,extraKeys{itemIndex})
                         candidate(extraKeys{itemIndex}) = extraDefaults{itemIndex};
                     end
@@ -360,6 +447,9 @@ classdef logAnalysis < matlab.apps.AppBase
                 validateLogEquation(app,candidate('angularVelocityEquation'),"角速度");
                 if ~ismember(lower(candidate('radsCheckBox')),{'true','false'})
                     error("logAnalysis:InvalidSettings","radsCheckBoxはtrueまたはfalseで指定してください。");
+                end
+                if ~ismember(lower(candidate('diffCheckBox')),{'true','false'})
+                    error("logAnalysis:InvalidSettings","diffCheckBoxはtrueまたはfalseで指定してください。");
                 end
                 optionKeys = {'switchDirection','smoothLeft','smoothRight','normalizeLeft', ...
                     'normalizeRight','detrendLeft','detrendRight','ylimMatch','plotSwitch'};
@@ -391,6 +481,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 app.velocityEditField.Value = candidate('velocityEquation');
                 app.angularVelocityEditField.Value = candidate('angularVelocityEquation');
                 app.radsCheckBox.Value = strcmpi(candidate('radsCheckBox'),'true');
+                app.diffCheckBox.Value = strcmpi(candidate('diffCheckBox'),'true');
                 for itemIndex = 1:numel(optionKeys)
                     optionControls{itemIndex}.Value = candidate(optionKeys{itemIndex});
                 end
@@ -496,7 +587,7 @@ classdef logAnalysis < matlab.apps.AppBase
             if isequal(folder,0) || isempty(folder)
                 return;
             end
-            propertiesToSave = {'rootDir','log','time','dt','velocity','angularVelocity', ...
+            propertiesToSave = {'rootDir','log','time','dt','velocity','distance','distanceFromEquation','angularVelocity', ...
                 'parameter','course','shortCutCourse'};
             previous = cell(size(propertiesToSave));
             for itemIndex = 1:numel(propertiesToSave)
@@ -627,32 +718,24 @@ classdef logAnalysis < matlab.apps.AppBase
             try
                 % 1ms積算角度があるログは、疎な瞬時角速度から再積分しない。
                 % imuAngle_Zは常にdeg。rad/sチェックは従来の角速度入力だけに適用する。
-                if ismember('imuAngle_Z',app.log.Properties.VariableNames)
-                    angle = double(app.log.imuAngle_Z) .* app.kgyro;
-                    if ismember('encTotalOptimal',app.log.Properties.VariableNames)
-                        pulsePerMm = app.pulse;
-                        scaleEntry = string(app.parameter);
-                        scaleEntry = scaleEntry(startsWith(scaleEntry,"encoderPulsePerMeter="));
-                        if ~isempty(scaleEntry)
-                            pulsePerMm = str2double(extractAfter(scaleEntry(1),"=")) / 1000;
-                        end
-                        if ~isscalar(pulsePerMm) || ~isfinite(pulsePerMm) || pulsePerMm <= 0
-                            error("logAnalysis:InvalidDistanceScale","エンコーダ距離換算値が不正です。");
-                        end
-                        distance = double(app.log.encTotalOptimal) ./ pulsePerMm;
-                        distanceStep = diff([0;distance]);
-                        if any(~isfinite(distanceStep)) || any(distanceStep < 0)
-                            error("logAnalysis:InvalidDistance","累積距離に不正値または逆行があります。");
-                        end
-                        % スタート原点から最初のレコードも含め、区間両端の平均姿勢を使う。
-                        heading = ([0;angle(1:end-1)] + angle) ./ 2 + app.rotate;
-                        x = cumsum(distanceStep .* sind(heading));
-                        y = cumsum(distanceStep .* cosd(heading));
+                if ismember('imuAngle_Z',app.log.Properties.VariableNames) || app.distanceFromEquation
+                    if ismember('imuAngle_Z',app.log.Properties.VariableNames)
+                        angle = double(app.log.imuAngle_Z) .* app.kgyro;
                     else
-                        angle = angle + app.rotate;
-                        x = cumtrapz(app.time,app.velocity .* sind(angle));
-                        y = cumtrapz(app.time,app.velocity .* cosd(angle));
+                        % 保存角度がない旧ログだけ角速度を積分する。
+                        angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
+                        if app.radsCheckBox.Value, angle = rad2deg(angle); end
                     end
+                    % 距離・速度の入力元はSettingタブの速度換算式に統一する。
+                    % diff時は累積距離を直接使い、再積分による誤差や区間ずれを避ける。
+                    distanceStep = diff([0;app.distance]);
+                    if any(~isfinite(distanceStep))
+                        error("logAnalysis:InvalidDistance","累積距離にInfまたはNaNがあります。");
+                    end
+                    % 負の距離差も保持し、先頭はスタート原点・角度0から積算する。
+                    heading = ([0;angle(1:end-1)] + angle) ./ 2 + app.rotate;
+                    x = cumsum(distanceStep .* sind(heading));
+                    y = cumsum(distanceStep .* cosd(heading));
                 elseif app.radsCheckBox.Value
                     % 積算角度のない旧ログは従来の換算式を使用する。
                     angle = cumtrapz(app.time,app.angularVelocity .* app.kgyro);
@@ -871,6 +954,7 @@ classdef logAnalysis < matlab.apps.AppBase
                 "logFolderDir", app.rootDir;
 				"timeEquation", app.timeEditField.Value;
 				"velocityEquation", app.velocityEditField.Value;
+                "diffCheckBox", string(app.diffCheckBox.Value);
 				"angularVelocityEquation", app.angularVelocityEditField.Value;
 				"radsCheckBox", string(app.radsCheckBox.Value);
 				"switchDirection", app.SwitchDirection.Value;
