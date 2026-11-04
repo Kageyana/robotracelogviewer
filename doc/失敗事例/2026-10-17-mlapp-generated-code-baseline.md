@@ -32,3 +32,7 @@ Python標準ライブラリでバックアップMLAPPのmatlab/document.xmlを�
 ## 確認方法
 
 `D:/robotrace/robotrace_v2/analysis/viewer_equations_20261017/stage_and_test.m` のMATLAB実行が終了コード0。`stage-retry.log` に11正常式・21不正式、ゼロ除算・overflow・整数平均、およびMLAPP実行/編集コード同期・UI保持のPASSを記録した。今回の検証停止への対策を確認したもので、人による手動操作確認の代わりではない。
+
+## ログ選択表示の改修時にも検出（2026-11-04）
+
+`analysis/viewer_log_selector_20261104/prepare.py` の完全一致assertで停止し、本体は未変更だった。バックアップXMLを比較したところ、全メソッドの署名と本体はcreateComponents以外一致し、差はプロパティ宣言・コールバック順、空行とApp Designer生成プロパティだった。関数単位比較を自動化し、編集処理の一致を確認してから現MLAPPの生成領域を候補へ保持した。生成領域をtest.txtへ無条件に戻すことはしない。同期後は実行コード全体・編集用コード・UI名・値・位置の再読込一致を検証する。証跡は同作業領域のbefore-mlapp-code.txt、prepare.py、stage2.log。
